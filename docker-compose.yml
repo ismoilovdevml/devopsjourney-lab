@@ -3,54 +3,106 @@ services:
     image: postgres:17-alpine
     container_name: devopslab-postgres
     environment:
-      POSTGRES_DB: devopslab
-      POSTGRES_USER: devopslab
-      POSTGRES_PASSWORD: devopslab_secret
+      POSTGRES_DB: ${DB_NAME:-devopslab}
+      POSTGRES_USER: ${DB_USER:-devopslab}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devopslab_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devopslab"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-devopslab}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - devopslab-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: devopslab-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - devopslab-network
+    restart: unless-stopped
 
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ./backend-go
+      dockerfile: Dockerfile
     container_name: devopslab-backend
     ports:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - PORT=8080
-      - NODE_ENV=production
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=devopslab
-      - POSTGRES_PASSWORD=devopslab_secret
-      - POSTGRES_DB=devopslab
+      # Server
+      - PORT=${PORT:-8080}
+      - GIN_MODE=${GIN_MODE:-release}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+
+      # Database
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-devopslab}
+      - DB_PASSWORD=${DB_PASSWORD:-devopslab_secret}
+      - DB_NAME=${DB_NAME:-devopslab}
+      - DB_SSLMODE=disable
+
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+
+      # JWT
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
+
+      # Docker
       - DOCKER_SOCKET=/var/run/docker.sock
-      - DEFAULT_IMAGE=devopslab:latest
-      - SESSION_TTL=3600
-      - CONTAINER_MEMORY=512m
-      - CONTAINER_CPU_SHARES=512
+      - DEFAULT_IMAGE=${DEFAULT_IMAGE:-devopslab:latest}
+      - TASKS_DIR=./tasks
+      - SESSION_TTL=${SESSION_TTL:-3600}
+      - MEM_LIMIT=${MEM_LIMIT:-536870912}
+      - CPU_NANO=${CPU_NANO:-500000000}
+      - PIDS_LIMIT=${PIDS_LIMIT:-256}
+
+      # CORS
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:80}
+
+      # Admin User Seeding
+      - SEED_ADMIN=${SEED_ADMIN:-true}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@devopslab.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+
+      # Monitoring
+      - PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED:-false}
+      - PROMETHEUS_PORT=9090
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - devopslab-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   frontend:
     build:
@@ -73,3 +125,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:

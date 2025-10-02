@@ -55,9 +55,20 @@ func Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error().Err(err).Interface("headers", c.Request.Header).Msg("Failed to bind registration JSON")
+
+		// User-friendly error messages
+		errorMsg := "Invalid request format"
+		if strings.Contains(err.Error(), "Password") && strings.Contains(err.Error(), "min") {
+			errorMsg = "Password must be at least 8 characters long"
+		} else if strings.Contains(err.Error(), "Email") {
+			errorMsg = "Please provide a valid email address"
+		} else if strings.Contains(err.Error(), "Username") && strings.Contains(err.Error(), "min") {
+			errorMsg = "Username must be at least 3 characters long"
+		}
+
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "Invalid request format",
-			Message: err.Error(),
+			Error:   errorMsg,
+			Message: errorMsg,
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -168,7 +179,8 @@ func Login(c *gin.Context) {
 	var user models.User
 	if err := database.DB.Where("username = ?", req.Username).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			Error: "Invalid credentials",
+			Error: "User not found",
+			Message: "The username you entered does not exist. Please register first.",
 			Code: http.StatusUnauthorized,
 		})
 		return
@@ -177,7 +189,8 @@ func Login(c *gin.Context) {
 	// Check password
 	if !auth.CheckPassword(req.Password, user.Password) {
 		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			Error: "Invalid credentials",
+			Error: "Invalid password",
+			Message: "The password you entered is incorrect. Please try again.",
 			Code: http.StatusUnauthorized,
 		})
 		return

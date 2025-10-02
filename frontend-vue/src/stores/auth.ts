@@ -22,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('username', response.user.username)
       return true
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Login failed'
+      error.value = err.response?.data?.message || err.response?.data?.error || 'Login failed'
       return false
     } finally {
       isLoading.value = false
@@ -40,7 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('username', response.user.username)
       return true
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Registration failed'
+      error.value = err.response?.data?.message || err.response?.data?.error || 'Registration failed'
       return false
     } finally {
       isLoading.value = false

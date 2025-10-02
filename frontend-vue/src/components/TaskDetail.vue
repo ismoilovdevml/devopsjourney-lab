@@ -19,7 +19,7 @@
         <FileText class="w-5 h-5 text-blue-600 dark:text-blue-400" />
         Vazifa tavsifi
       </h4>
-      <p class="text-gray-700 dark:text-gray-300 leading-relaxed">{{ task.description }}</p>
+      <div class="markdown-content prose dark:prose-invert max-w-none" v-html="renderedDescription"></div>
     </div>
 
     <div v-if="task.hints && task.hints.length > 0" class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-6 rounded-2xl border-2 border-green-100 dark:border-green-800/50 shadow-sm">
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { FileText, Lightbulb } from 'lucide-vue-next'
+import { marked } from 'marked'
 import type { Task } from '@/types'
 
 const props = defineProps<{
@@ -51,6 +52,11 @@ const props = defineProps<{
 const difficultyText = computed(() => {
   const levels = ['', 'Oson', 'O\'rta', 'Qiyin']
   return levels[props.task.difficulty] || 'Unknown'
+})
+
+const renderedDescription = computed(() => {
+  if (!props.task.description) return ''
+  return marked(props.task.description)
 })
 </script>
 

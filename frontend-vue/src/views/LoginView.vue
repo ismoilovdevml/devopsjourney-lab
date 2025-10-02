@@ -60,14 +60,22 @@
         </div>
 
         <div>
-          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Password</label>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Password
+            <span v-if="!isLogin" class="text-gray-500 dark:text-gray-400 text-xs font-normal">(minimum 8 characters)</span>
+            <span v-else class="text-gray-500 dark:text-gray-400 text-xs font-normal">(minimum 6 characters)</span>
+          </label>
           <input
             v-model="formData.password"
             type="password"
+            :minlength="isLogin ? 6 : 8"
             class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-indigo-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-indigo-500/20 outline-none transition-all duration-300"
-            placeholder="Enter password"
+            :placeholder="isLogin ? 'Enter password (min 6 chars)' : 'Enter password (min 8 chars)'"
             required
           />
+          <p v-if="formData.password && formData.password.length < (isLogin ? 6 : 8)" class="mt-1 text-xs text-red-600 dark:text-red-400">
+            Password must be at least {{ isLogin ? 6 : 8 }} characters
+          </p>
         </div>
 
         <div v-if="authStore.error" class="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
@@ -85,7 +93,7 @@
 
         <button
           type="submit"
-          :disabled="authStore.isLoading"
+          :disabled="authStore.isLoading || !isFormValid"
           class="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-600 dark:to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 flex items-center justify-center gap-2"
         >
           <Loader2 v-if="authStore.isLoading" class="w-5 h-5 animate-spin" />
@@ -98,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Terminal, LogIn, Loader2, UserPlus } from 'lucide-vue-next'
@@ -112,6 +120,25 @@ const formData = reactive({
   username: '',
   email: '',
   password: ''
+})
+
+// Form validation
+const isFormValid = computed(() => {
+  const minPasswordLength = isLogin.value ? 6 : 8
+
+  if (!formData.username || !formData.password) {
+    return false
+  }
+
+  if (formData.password.length < minPasswordLength) {
+    return false
+  }
+
+  if (!isLogin.value && !formData.email) {
+    return false
+  }
+
+  return true
 })
 
 // Clear error when switching between login/register or when typing

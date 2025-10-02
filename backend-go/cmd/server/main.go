@@ -70,6 +70,11 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to run migrations")
 	}
 
+	// Seed admin user from ENV
+	if err := database.SeedAdminUser(); err != nil {
+		log.Error().Err(err).Msg("Failed to seed admin user")
+	}
+
 	// Connect to Redis
 	if err := database.ConnectRedis(&cfg.Redis); err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to Redis")

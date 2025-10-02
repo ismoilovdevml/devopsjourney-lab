@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "dockerode": "^4.0.9",
-    "pg": "^8.16.3"
-  }
-}
