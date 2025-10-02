@@ -50,7 +50,7 @@
     <!-- Main Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
-      <div class="w-[450px] bg-white dark:bg-slate-800 border-r-2 border-gray-100 dark:border-slate-700 flex flex-col shadow-sm transition-colors duration-300">
+      <div :style="{ width: sidebarWidth + 'px', flexShrink: 0 }" class="bg-white dark:bg-slate-800 border-r-2 border-gray-100 dark:border-slate-700 flex flex-col shadow-sm transition-colors duration-300">
         <div class="p-6 border-b-2 border-gray-100 dark:border-slate-700 transition-colors">
           <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
             <Trophy class="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
@@ -144,8 +144,16 @@
         </div>
       </div>
 
+      <!-- Resizer -->
+      <div
+        @mousedown="startResize"
+        class="w-1 bg-gray-200 dark:bg-slate-700 hover:bg-blue-500 dark:hover:bg-indigo-500 cursor-col-resize transition-colors duration-200 relative group"
+      >
+        <div class="absolute inset-y-0 -left-1 -right-1"></div>
+      </div>
+
       <!-- Terminal Area -->
-      <div class="flex-1 bg-[#1e1e1e] dark:bg-slate-900 relative transition-colors duration-300">
+      <div class="flex-1 bg-[#1e1e1e] dark:bg-slate-900 relative transition-colors duration-300 min-w-0 overflow-hidden">
         <TerminalComponent v-if="sessionStore.sessionId" :session-id="sessionStore.sessionId" />
         <div v-else class="h-full flex items-center justify-center text-gray-400 dark:text-gray-600">
           <div class="text-center">
@@ -167,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTaskStore } from '@/stores/task'
@@ -193,6 +201,10 @@ const { success, error, info } = useToast()
 const currentTaskIndex = ref(0)
 const currentTask = computed(() => taskStore.tasks[currentTaskIndex.value])
 const showProgress = ref(false)
+
+// Resizer functionality
+const sidebarWidth = ref(450)
+const isResizing = ref(false)
 
 // Computed properties for button states - navigation allowed during session
 const canGoPrevious = computed(() => currentTaskIndex.value > 0)
@@ -299,4 +311,42 @@ function formatTime(seconds: number): string {
   const secs = seconds % 60
   return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
+
+// Resizer functions
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  e.preventDefault()
+}
+
+function handleResize(e: MouseEvent) {
+  if (!isResizing.value) return
+
+  const newWidth = e.clientX
+  const minWidth = 300
+  const minTerminalWidth = 400
+  const maxWidth = window.innerWidth - minTerminalWidth
+
+  // Set min and max width constraints
+  if (newWidth >= minWidth && newWidth <= maxWidth) {
+    sidebarWidth.value = newWidth
+  } else if (newWidth < minWidth) {
+    sidebarWidth.value = minWidth
+  } else if (newWidth > maxWidth) {
+    sidebarWidth.value = maxWidth
+  }
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+}
+
+// Cleanup on component unmount
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 </script>
