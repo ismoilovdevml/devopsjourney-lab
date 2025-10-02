@@ -1,38 +1,27 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
-export type Theme = 'light' | 'dark' | 'system'
+export type Theme = 'light' | 'dark'
 
 export const useThemeStore = defineStore('theme', () => {
-  // Get system preference
-  const getSystemTheme = (): 'light' | 'dark' => {
+  // Get initial theme from localStorage or system preference
+  const getInitialTheme = (): Theme => {
+    const stored = localStorage.getItem('theme') as Theme | null
+    if (stored) return stored
+
+    // Check system preference as default
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark'
     }
+
     return 'light'
   }
 
-  // Get initial theme from localStorage or default to system
-  const getInitialTheme = (): Theme => {
-    const stored = localStorage.getItem('theme') as Theme | null
-    return stored || 'system' // Default to system theme
-  }
-
   const theme = ref<Theme>(getInitialTheme())
-  const systemTheme = ref<'light' | 'dark'>(getSystemTheme())
-
-  // Get actual theme to apply (resolve 'system' to 'light' or 'dark')
-  const getActualTheme = (): 'light' | 'dark' => {
-    if (theme.value === 'system') {
-      return systemTheme.value
-    }
-    return theme.value
-  }
 
   // Apply theme to document
-  const applyTheme = () => {
-    const actualTheme = getActualTheme()
-    if (actualTheme === 'dark') {
+  const applyTheme = (newTheme: Theme) => {
+    if (newTheme === 'dark') {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
@@ -40,32 +29,17 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   // Initialize theme on load
-  applyTheme()
-
-  // Listen to system theme changes
-  if (window.matchMedia) {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    mediaQuery.addEventListener('change', (e) => {
-      systemTheme.value = e.matches ? 'dark' : 'light'
-      applyTheme()
-    })
-  }
+  applyTheme(theme.value)
 
   // Watch for theme changes
   watch(theme, (newTheme) => {
     localStorage.setItem('theme', newTheme)
-    applyTheme()
+    applyTheme(newTheme)
   })
 
-  // Toggle theme (cycles through: system -> light -> dark -> system)
+  // Toggle theme (only light <-> dark)
   const toggleTheme = () => {
-    if (theme.value === 'system') {
-      theme.value = 'light'
-    } else if (theme.value === 'light') {
-      theme.value = 'dark'
-    } else {
-      theme.value = 'system'
-    }
+    theme.value = theme.value === 'light' ? 'dark' : 'light'
   }
 
   // Set specific theme
@@ -73,15 +47,13 @@ export const useThemeStore = defineStore('theme', () => {
     theme.value = newTheme
   }
 
-  // Check if current applied theme is dark
-  const isDark = () => getActualTheme() === 'dark'
+  // Check if dark mode
+  const isDark = () => theme.value === 'dark'
 
   return {
     theme,
-    systemTheme,
     toggleTheme,
     setTheme,
-    isDark,
-    getActualTheme
+    isDark
   }
 })
