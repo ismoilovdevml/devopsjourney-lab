@@ -57,7 +57,13 @@ func SetupRoutes(router *gin.Engine, corsOrigins []string) {
 		{
 			admin.GET("/stats", GetStats)
 			admin.GET("/users", GetUsers)
+			admin.GET("/users/:id", GetUserDetails)
 			admin.PUT("/users/:id", UpdateUser)
+			admin.DELETE("/users/:id", DeleteUserByID)
+			admin.GET("/sessions", GetAllSessions)
+			admin.POST("/sessions/:id/terminate", TerminateSession)
+			admin.GET("/activity", GetActivityLogs)
+			admin.GET("/resources", GetResources)
 			admin.POST("/tasks/reload", ReloadTasks)
 		}
 	}

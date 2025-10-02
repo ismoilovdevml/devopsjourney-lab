@@ -99,9 +99,10 @@ class ApiService {
     console.warn('Unauthorized - clearing auth and redirecting to login')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
+    localStorage.removeItem('username')
 
     // Only redirect if not already on login page
-    if (window.location.pathname !== '/login') {
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
       window.location.href = '/login'
     }
   }

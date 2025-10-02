@@ -539,9 +539,31 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Users, Activity, Server, CheckCircle, RefreshCw, Eye, Edit, Trash2, XCircle, X, AlertTriangle } from 'lucide-vue-next'
-import axios from 'axios'
+import { api } from '@/services/api'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
+// Create axios instance with auth headers
+const createAuthRequest = (method: string, url: string, data?: any) => {
+  const token = localStorage.getItem('auth_token')
+  const headers: any = {
+    'Content-Type': 'application/json'
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const config: any = {
+    method,
+    url: `/api${url}`,  // Will use vite proxy
+    headers
+  }
+
+  if (data) {
+    config.data = data
+  }
+
+  return import('axios').then(axios => axios.default.request(config))
+}
 
 const activeTab = ref('users')
 const loading = ref(false)
@@ -585,7 +607,7 @@ const tabs = [
 
 const fetchStats = async () => {
   try {
-    const response = await axios.get(`${API_URL}/admin/stats`)
+    const response = await createAuthRequest('GET', '/admin/stats')
     stats.value = response.data
   } catch (error) {
     console.error('Failed to fetch stats:', error)
@@ -594,7 +616,7 @@ const fetchStats = async () => {
 
 const fetchUsers = async () => {
   try {
-    const response = await axios.get(`${API_URL}/admin/users`)
+    const response = await createAuthRequest('GET', '/admin/users')
     users.value = response.data
   } catch (error) {
     console.error('Failed to fetch users:', error)
@@ -603,7 +625,7 @@ const fetchUsers = async () => {
 
 const fetchSessions = async () => {
   try {
-    const response = await axios.get(`${API_URL}/admin/sessions`)
+    const response = await createAuthRequest('GET', '/admin/sessions')
     sessions.value = response.data
   } catch (error) {
     console.error('Failed to fetch sessions:', error)
@@ -612,7 +634,7 @@ const fetchSessions = async () => {
 
 const fetchActivity = async () => {
   try {
-    const response = await axios.get(`${API_URL}/admin/activity`)
+    const response = await createAuthRequest('GET', '/admin/activity')
     activityLogs.value = response.data
   } catch (error) {
     console.error('Failed to fetch activity:', error)
@@ -621,7 +643,7 @@ const fetchActivity = async () => {
 
 const fetchResources = async () => {
   try {
-    const response = await axios.get(`${API_URL}/admin/resources`)
+    const response = await createAuthRequest('GET', '/admin/resources')
     resources.value = response.data
   } catch (error) {
     console.error('Failed to fetch resources:', error)
@@ -630,7 +652,7 @@ const fetchResources = async () => {
 
 const viewUserDetails = async (user: any) => {
   try {
-    const response = await axios.get(`${API_URL}/admin/users/${user.id}`)
+    const response = await createAuthRequest('GET', `/admin/users/${user.id}`)
     selectedUser.value = response.data
     showUserModal.value = true
   } catch (error) {
@@ -665,7 +687,7 @@ const saveUser = async () => {
       updateData.password = editForm.value.password
     }
 
-    await axios.put(`${API_URL}/admin/users/${editingUser.value.id}`, updateData)
+    await createAuthRequest('PUT', `/admin/users/${editingUser.value.id}`, updateData)
 
     showEditModal.value = false
     await refreshAll()
@@ -690,7 +712,7 @@ const confirmDeleteUser = (user: any) => {
 const deleteUser = async (user: any) => {
   saving.value = true
   try {
-    await axios.delete(`${API_URL}/admin/users/${user.id}`)
+    await createAuthRequest('DELETE', `/admin/users/${user.id}`)
     showConfirmDialog.value = false
     await refreshAll()
     alert('User deleted successfully')
@@ -714,7 +736,7 @@ const confirmTerminateSession = (session: any) => {
 const terminateSession = async (session: any) => {
   saving.value = true
   try {
-    await axios.post(`${API_URL}/admin/sessions/${session.session_id}/terminate`)
+    await createAuthRequest('POST', `/admin/sessions/${session.session_id}/terminate`)
     showConfirmDialog.value = false
     await refreshAll()
     alert('Session terminated successfully')

@@ -4,7 +4,9 @@ import { api } from '@/services/api'
 import type { User, LoginRequest, RegisterRequest } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
+  // Initialize user from localStorage
+  const storedUser = localStorage.getItem('user')
+  const user = ref<User | null>(storedUser ? JSON.parse(storedUser) : null)
   const token = ref<string | null>(localStorage.getItem('auth_token'))
   const isLoading = ref(false)
   const error = ref<string | null>(null)

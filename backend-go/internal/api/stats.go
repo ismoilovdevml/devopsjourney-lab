@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/devops-lab/backend/internal/auth"
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/devops-lab/backend/internal/models"
 	"github.com/devops-lab/backend/internal/task"
@@ -51,37 +52,69 @@ func GetLeaderboard(c *gin.Context) {
 
 // GetStats returns platform statistics (admin only)
 func GetStats(c *gin.Context) {
-	var stats models.StatsResponse
+	var totalUsers, onlineUsers, activeSessions, completedTasks int64
 
 	// Total users
-	database.DB.Model(&models.User{}).Count(&stats.TotalUsers)
+	database.DB.Model(&models.User{}).Count(&totalUsers)
+
+	// Online users (active in last 10 minutes - we'll implement this later)
+	onlineUsers = 0
 
 	// Active sessions
-	database.DB.Model(&models.Session{}).Where("status = ?", "active").Count(&stats.ActiveSessions)
+	database.DB.Model(&models.Session{}).Where("status = ?", "active").Count(&activeSessions)
 
-	// Total attempts
-	database.DB.Model(&models.Progress{}).Count(&stats.TotalAttempts)
+	// Completed tasks
+	database.DB.Model(&models.Progress{}).Where("passed = ?", true).Count(&completedTasks)
 
-	// Completion rate
-	var passed int64
-	database.DB.Model(&models.Progress{}).Where("passed = ?", true).Count(&passed)
-	if stats.TotalAttempts > 0 {
-		stats.CompletionRate = float64(passed) / float64(stats.TotalAttempts) * 100
-	}
-
-	c.JSON(http.StatusOK, stats)
+	c.JSON(http.StatusOK, gin.H{
+		"users": gin.H{
+			"total":   totalUsers,
+			"online":  onlineUsers,
+			"offline": totalUsers - onlineUsers,
+		},
+		"sessions": gin.H{
+			"active": activeSessions,
+		},
+		"progress": gin.H{
+			"completedTasks": completedTasks,
+			"totalScore":     0,
+		},
+		"activity24h": []interface{}{},
+	})
 }
 
-// GetUsers returns all users (admin only)
+// GetUsers returns all users with stats (admin only)
 func GetUsers(c *gin.Context) {
 	var users []models.User
 
-	if err := database.DB.Select("id, username, email, role, active, created_at").Find(&users).Error; err != nil {
+	if err := database.DB.Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	// Enhance with additional stats
+	result := make([]gin.H, len(users))
+	for i, user := range users {
+		var sessionCount, totalScore int64
+		database.DB.Model(&models.Session{}).Where("user_id = ?", user.ID).Count(&sessionCount)
+		database.DB.Model(&models.Progress{}).Where("user_id = ? AND passed = ?", user.ID, true).
+			Select("COALESCE(SUM(score), 0)").Row().Scan(&totalScore)
+
+		result[i] = gin.H{
+			"id":            user.ID,
+			"username":      user.Username,
+			"email":         user.Email,
+			"role":          user.Role,
+			"active":        user.Active,
+			"created_at":    user.CreatedAt,
+			"is_online":     false, // TODO: implement online status
+			"session_count": sessionCount,
+			"total_score":   totalScore,
+			"last_login":    user.CreatedAt, // TODO: implement last_login tracking
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // UpdateUser updates user details (admin only)
@@ -89,8 +122,11 @@ func UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
 
 	var req struct {
-		Role   string `json:"role"`
-		Active bool   `json:"active"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+		Active   *bool  `json:"active"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +134,30 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(req).Error; err != nil {
+	updates := make(map[string]interface{})
+
+	if req.Username != "" {
+		updates["username"] = req.Username
+	}
+	if req.Email != "" {
+		updates["email"] = req.Email
+	}
+	if req.Role != "" {
+		updates["role"] = req.Role
+	}
+	if req.Active != nil {
+		updates["active"] = *req.Active
+	}
+	if req.Password != "" {
+		hashedPassword, err := auth.HashPassword(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			return
+		}
+		updates["password"] = hashedPassword
+	}
+
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 		return
 	}
@@ -117,4 +176,109 @@ func ReloadTasks(c *gin.Context) {
 		"message": "Tasks reloaded successfully",
 		"count":   len(task.GetTasks()),
 	})
+}
+
+// GetUserDetails returns detailed user information (admin only)
+func GetUserDetails(c *gin.Context) {
+	userID := c.Param("id")
+
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Get sessions
+	var sessions []models.Session
+	database.DB.Where("user_id = ?", user.ID).Find(&sessions)
+
+	// Get progress
+	var progress []models.Progress
+	database.DB.Where("user_id = ?", user.ID).Order("completed_at DESC").Find(&progress)
+
+	// Prepare user data
+	userData := gin.H{
+		"id":         user.ID,
+		"username":   user.Username,
+		"email":      user.Email,
+		"role":       user.Role,
+		"active":     user.Active,
+		"created_at": user.CreatedAt,
+		"is_online":  false,
+		"last_login": user.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":     userData,
+		"sessions": sessions,
+		"progress": progress,
+		"activity": []interface{}{}, // TODO: implement activity logs
+	})
+}
+
+// GetAllSessions returns all active sessions (admin only)
+func GetAllSessions(c *gin.Context) {
+	var sessions []models.Session
+	if err := database.DB.Where("status = ?", "active").Find(&sessions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch sessions"})
+		return
+	}
+
+	// Enhance with usernames
+	result := make([]gin.H, len(sessions))
+	for i, session := range sessions {
+		var user models.User
+		database.DB.First(&user, session.UserID)
+
+		result[i] = gin.H{
+			"session_id":        session.ID,
+			"user_id":           session.UserID,
+			"username":          user.Username,
+			"task_id":           session.TaskID,
+			"container_id":      session.ContainerID,
+			"status":            session.Status,
+			"created_at":        session.CreatedAt,
+			"expires_at":        session.ExpiresAt,
+			"remaining_seconds": session.ExpiresAt.Unix() - session.CreatedAt.Unix(),
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// GetActivityLogs returns recent activity logs (admin only)
+func GetActivityLogs(c *gin.Context) {
+	// TODO: Implement activity logging
+	c.JSON(http.StatusOK, []interface{}{})
+}
+
+// GetResources returns container resource usage (admin only)
+func GetResources(c *gin.Context) {
+	// TODO: Implement resource monitoring
+	c.JSON(http.StatusOK, []interface{}{})
+}
+
+// TerminateSession terminates a session (admin only)
+func TerminateSession(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	if err := sessionManager.DeleteSession(c.Request.Context(), sessionID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Session terminated successfully"})
+}
+
+// DeleteUserByID deletes a user (admin only)
+func DeleteUserByID(c *gin.Context) {
+	userID := c.Param("id")
+
+	// Delete user and all related data (cascade)
+	if err := database.DB.Delete(&models.User{}, userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
