@@ -307,16 +307,38 @@
               Sessions ({{ selectedUser.sessions.length }})
             </h3>
             <div class="space-y-2 max-h-60 overflow-y-auto">
-              <div v-for="sess in selectedUser.sessions" :key="sess.session_id" class="bg-slate-800 p-3 rounded border border-gray-700">
-                <div class="flex justify-between text-sm">
-                  <span class="font-mono text-purple-400">{{ sess.session_id || sess.id }}</span>
-                  <span :class="sess.status === 'active' ? 'text-green-400' : 'text-gray-400'">{{ sess.status }}</span>
-                </div>
-                <div class="text-xs text-gray-400 mt-1">
-                  Task: {{ sess.task_id }} | Created: {{ formatDate(sess.created_at) }}
+              <div v-for="sess in selectedUser.sessions" :key="sess.session_id" class="bg-white dark:bg-slate-800 p-3 rounded border border-indigo-100 dark:border-gray-700 transition-colors">
+                <div class="flex justify-between items-start text-sm mb-2">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-mono text-purple-600 dark:text-purple-400 text-xs">{{ (sess.session_id || sess.id).substring(0, 12) }}...</span>
+                      <span :class="[
+                        'px-2 py-0.5 rounded-full text-xs font-semibold',
+                        sess.status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      ]">
+                        {{ sess.status }}
+                      </span>
+                    </div>
+                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                      <span class="font-medium">Task:</span> {{ sess.task_id }}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-500">
+                      <span class="font-medium">Created:</span> {{ formatDate(sess.created_at) }}
+                    </div>
+                  </div>
+
+                  <!-- Terminate Button -->
+                  <button
+                    v-if="sess.status === 'active'"
+                    @click="terminateSessionFromDetails(sess)"
+                    class="flex-shrink-0 p-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg transition-all hover:scale-110"
+                    title="Terminate Session"
+                  >
+                    <XCircle class="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <div v-if="selectedUser.sessions.length === 0" class="text-center text-gray-500 py-4">
+              <div v-if="selectedUser.sessions.length === 0" class="text-center text-gray-500 dark:text-gray-500 py-4">
                 No sessions
               </div>
             </div>
@@ -628,6 +650,32 @@ const confirmTerminateSession = (session: any) => {
   }
   showConfirmDialog.value = true
 }
+
+const terminateSessionFromDetails = async (session: any) => {
+  confirmDialog.value = {
+    title: 'Terminate Session',
+    message: `Are you sure you want to terminate this session? Task: ${session.task_id}`,
+    onConfirm: async () => {
+      saving.value = true
+      try {
+        await api.adminTerminateSession(session.session_id)
+        showConfirmDialog.value = false
+        if (selectedUser.value?.user?.id) {
+          selectedUser.value = await api.adminUserDetails(selectedUser.value.user.id)
+        }
+        await refreshAll()
+        success('Session terminated successfully')
+      } catch (err: any) {
+        console.error('Failed to terminate session:', err)
+        error('Failed to terminate session: ' + (err.response?.data?.error || err.message))
+      } finally {
+        saving.value = false
+      }
+    }
+  }
+  showConfirmDialog.value = true
+}
+
 
 const terminateSession = async (session: any) => {
   saving.value = true

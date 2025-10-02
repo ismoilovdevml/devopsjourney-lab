@@ -285,21 +285,36 @@ func GetResources(c *gin.Context) {
 func TerminateSession(c *gin.Context) {
 	sessionID := c.Param("id")
 
-	// Get session info before deleting
+	// First, try to get session info from session manager
 	session, _ := sessionManager.GetSession(c.Request.Context(), sessionID)
 
-	if err := sessionManager.DeleteSession(c.Request.Context(), sessionID); err != nil {
+	// Also check database for session info if not found in memory
+	var dbSession models.Session
+	dbErr := database.DB.Where("session_id = ?", sessionID).First(&dbSession).Error
+
+	// If session not found in either place, return error
+	if session == nil && dbErr != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
 
-	// Log activity
+	// Try to delete from session manager (may not exist in memory)
+	sessionManager.DeleteSession(c.Request.Context(), sessionID)
+
+	// Also delete from database
+	database.DB.Where("session_id = ?", sessionID).Delete(&models.Session{})
+
+	// Prepare activity log details
 	adminID := c.GetUint("user_id")
 	adminUsername, _ := c.Get("username")
 	details := "Admin terminated session: " + sessionID
+
 	if session != nil {
 		details = fmt.Sprintf("Admin terminated session for user %d (task: %s)", session.UserID, session.TaskID)
+	} else if dbErr == nil {
+		details = fmt.Sprintf("Admin terminated session for user %d (task: %s)", dbSession.UserID, dbSession.TaskID)
 	}
+
 	activityLog := models.ActivityLog{
 		UserID:    adminID,
 		Username:  adminUsername.(string),
