@@ -28,6 +28,11 @@
             Progress
           </button>
 
+          <router-link v-if="authStore.user?.role === 'admin'" to="/admin" class="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-500 dark:to-orange-500 text-white hover:from-red-700 hover:to-orange-700 dark:hover:from-red-600 dark:hover:to-orange-600 rounded-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Admin
+          </router-link>
+
           <div class="text-right">
             <p class="text-xs text-gray-500 dark:text-gray-400">Logged in as</p>
             <p class="font-semibold text-gray-800 dark:text-gray-200">{{ authStore.user?.username }}</p>
