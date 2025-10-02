@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+    <ToastNotification />
     <!-- Header -->
     <div class="max-w-7xl mx-auto mb-8">
       <div class="flex items-center justify-between">
@@ -540,6 +541,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Users, Activity, Server, CheckCircle, RefreshCw, Eye, Edit, Trash2, XCircle, X, AlertTriangle } from 'lucide-vue-next'
 import { api } from '@/services/api'
+import { useToast } from '@/composables/useToast'
+import ToastNotification from '@/components/ToastNotification.vue'
+
+const { success, error } = useToast()
 
 // Create axios instance with auth headers
 const createAuthRequest = (method: string, url: string, data?: any) => {
@@ -655,9 +660,9 @@ const viewUserDetails = async (user: any) => {
     const response = await createAuthRequest('GET', `/admin/users/${user.id}`)
     selectedUser.value = response.data
     showUserModal.value = true
-  } catch (error) {
-    console.error('Failed to fetch user details:', error)
-    alert('Failed to load user details')
+  } catch (err) {
+    console.error('Failed to fetch user details:', err)
+    error('Failed to load user details')
   }
 }
 
@@ -691,10 +696,10 @@ const saveUser = async () => {
 
     showEditModal.value = false
     await refreshAll()
-    alert('User updated successfully')
-  } catch (error: any) {
-    console.error('Failed to update user:', error)
-    alert('Failed to update user: ' + (error.response?.data?.error || error.message))
+    success('User updated successfully')
+  } catch (err: any) {
+    console.error('Failed to update user:', err)
+    error('Failed to update user: ' + (err.response?.data?.error || err.message))
   } finally {
     saving.value = false
   }
@@ -715,10 +720,10 @@ const deleteUser = async (user: any) => {
     await createAuthRequest('DELETE', `/admin/users/${user.id}`)
     showConfirmDialog.value = false
     await refreshAll()
-    alert('User deleted successfully')
-  } catch (error: any) {
-    console.error('Failed to delete user:', error)
-    alert('Failed to delete user: ' + (error.response?.data?.error || error.message))
+    success('User deleted successfully')
+  } catch (err: any) {
+    console.error('Failed to delete user:', err)
+    error('Failed to delete user: ' + (err.response?.data?.error || err.message))
   } finally {
     saving.value = false
   }
@@ -739,10 +744,10 @@ const terminateSession = async (session: any) => {
     await createAuthRequest('POST', `/admin/sessions/${session.session_id}/terminate`)
     showConfirmDialog.value = false
     await refreshAll()
-    alert('Session terminated successfully')
-  } catch (error: any) {
-    console.error('Failed to terminate session:', error)
-    alert('Failed to terminate session: ' + (error.response?.data?.error || error.message))
+    success('Session terminated successfully')
+  } catch (err: any) {
+    console.error('Failed to terminate session:', err)
+    error('Failed to terminate session: ' + (err.response?.data?.error || err.message))
   } finally {
     saving.value = false
   }
