@@ -1,0 +1,22 @@
+id: user-management
+title: "Test 4: Linux User & Permission Management"
+image: ubuntu:22.04
+
+setup:
+  - apt-get update -qq
+  - apt-get install -y sudo -qq
+
+checks:
+  - name: "Check if user 'devops' exists"
+    cmd: id devops >/dev/null 2>&1
+  - name: "Check if user is in sudo group"
+    cmd: groups devops | grep -q sudo
+  - name: "Check if /opt/app directory exists"
+    cmd: test -d /opt/app
+  - name: "Check if /opt/app is owned by devops"
+    cmd: stat -c '%U' /opt/app | grep -q devops
+  - name: "Check if /opt/app has correct permissions (755)"
+    cmd: stat -c '%a' /opt/app | grep -q 755
+
+order: 4
+difficulty: 1

@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: devopslab-postgres
+    environment:
+      POSTGRES_DB: devopslab
+      POSTGRES_USER: devopslab
+      POSTGRES_PASSWORD: devopslab_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devopslab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devopslab-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: devopslab-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=8080
+      - NODE_ENV=production
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=devopslab
+      - POSTGRES_PASSWORD=devopslab_secret
+      - POSTGRES_DB=devopslab
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - DEFAULT_IMAGE=devopslab:latest
+      - SESSION_TTL=3600
+      - CONTAINER_MEMORY=512m
+      - CONTAINER_CPU_SHARES=512
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - devopslab-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend-vue
+      dockerfile: Dockerfile
+    container_name: devopslab-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - devopslab-network
+
+networks:
+  devopslab-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

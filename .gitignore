@@ -1,0 +1,40 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# package-lock.json should be committed for reproducible builds
+yarn.lock
+
+# Next.js
+.next/
+out/
+.vercel/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# VSCode
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Build output
+dist/
+build/
+coverage/
+
+# Static files (stc)
+public/static/
+static/
+
+# OS files
+.DS_Store
+Thumbs.db

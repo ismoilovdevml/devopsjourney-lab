@@ -1,0 +1,24 @@
+id: docker-basics
+title: "Test 2: Docker Container Management"
+image: ubuntu:22.04
+order: 2
+difficulty: 2
+
+setup:
+  - apt-get update -qq
+  - apt-get install -y apt-transport-https ca-certificates curl software-properties-common -qq
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+  - add-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+  - apt-get update -qq
+  - apt-get install -y docker-ce -qq
+  - service docker start
+
+checks:
+  - name: "Check if Docker service is running"
+    cmd: service docker status | grep -q running
+  - name: "Check if myapp container exists"
+    cmd: docker ps -a --format '{{.Names}}' | grep -q '^myapp$'
+  - name: "Check if container is running nginx"
+    cmd: docker inspect myapp | grep -q nginx
+  - name: "Check if container port 80 is exposed"
+    cmd: docker inspect myapp | grep -q '"80/tcp"'

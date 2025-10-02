@@ -1,0 +1,19 @@
+id: nginx-health
+title: "Test 1: Nginx Web Server Setup"
+image: ubuntu:22.04
+order: 1
+difficulty: 1
+
+setup:
+  - apt-get update -qq
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl > /dev/null 2>&1
+
+checks:
+  - name: "Check if index.html exists"
+    cmd: test -f /var/www/html/index.html
+  - name: "Check if content is 'ok'"
+    cmd: grep -qx ok /var/www/html/index.html
+  - name: "Check if Nginx is running"
+    cmd: pgrep nginx >/dev/null
+  - name: "Check if web page is accessible"
+    cmd: curl -s http://127.0.0.1/index.html | grep -q ok

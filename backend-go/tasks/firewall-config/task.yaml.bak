@@ -1,0 +1,23 @@
+id: firewall-config
+title: "Test 5: UFW Firewall Configuration"
+image: ubuntu:22.04
+
+setup:
+  - apt-get update -qq
+  - apt-get install -y ufw -qq
+  - ufw --force reset
+
+checks:
+  - name: "Check if UFW is installed"
+    cmd: which ufw >/dev/null
+  - name: "Check if SSH port 22 is allowed"
+    cmd: ufw status | grep -q "22.*ALLOW"
+  - name: "Check if HTTP port 80 is allowed"
+    cmd: ufw status | grep -q "80.*ALLOW"
+  - name: "Check if HTTPS port 443 is allowed"
+    cmd: ufw status | grep -q "443.*ALLOW"
+  - name: "Check if UFW is active"
+    cmd: ufw status | grep -q "Status.*active"
+
+order: 5
+difficulty: 2
