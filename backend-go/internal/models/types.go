@@ -145,3 +145,15 @@ type LeaderboardEntry struct {
 	Completed int    `json:"completed"`
 	Rank      int    `json:"rank"`
 }
+
+// ActivityLog tracks user actions for audit
+type ActivityLog struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"index" json:"user_id"`
+	Username  string    `json:"username"`
+	Action    string    `gorm:"not null" json:"action"` // login, logout, session_start, session_stop, task_complete, etc.
+	Details   string    `json:"details,omitempty"`
+	IPAddress string    `json:"ip_address,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}

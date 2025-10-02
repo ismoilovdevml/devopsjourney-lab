@@ -195,6 +195,52 @@ class ApiService {
     const { data } = await this.client.get('/healthz')
     return data
   }
+
+  // Admin endpoints
+  async adminStats(): Promise<any> {
+    const { data } = await this.client.get('/admin/stats')
+    return data
+  }
+
+  async adminUsers(): Promise<any> {
+    const { data } = await this.client.get('/admin/users')
+    return data
+  }
+
+  async adminUserDetails(id: number): Promise<any> {
+    const { data } = await this.client.get(`/admin/users/${id}`)
+    return data
+  }
+
+  async adminUpdateUser(id: number, userData: any): Promise<any> {
+    const { data } = await this.client.put(`/admin/users/${id}`, userData)
+    return data
+  }
+
+  async adminDeleteUser(id: number): Promise<any> {
+    const { data } = await this.client.delete(`/admin/users/${id}`)
+    return data
+  }
+
+  async adminSessions(): Promise<any> {
+    const { data } = await this.client.get('/admin/sessions')
+    return data
+  }
+
+  async adminTerminateSession(id: string): Promise<any> {
+    const { data } = await this.client.post(`/admin/sessions/${id}/terminate`)
+    return data
+  }
+
+  async adminActivity(): Promise<any> {
+    const { data } = await this.client.get('/admin/activity')
+    return data
+  }
+
+  async adminResources(): Promise<any> {
+    const { data } = await this.client.get('/admin/resources')
+    return data
+  }
 }
 
 export const api = new ApiService()

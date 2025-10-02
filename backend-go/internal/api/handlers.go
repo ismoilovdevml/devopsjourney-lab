@@ -145,6 +145,17 @@ func Register(c *gin.Context) {
 
 	log.Info().Str("username", user.Username).Msg("User registered")
 
+	// Log activity
+	activityLog := models.ActivityLog{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Action:    "register",
+		Details:   "New user registered",
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
+
 	c.JSON(http.StatusCreated, models.LoginResponse{
 		Token: token,
 		User:  user,
@@ -217,6 +228,17 @@ func Login(c *gin.Context) {
 	}
 
 	log.Info().Str("username", user.Username).Msg("User logged in")
+
+	// Log activity
+	activityLog := models.ActivityLog{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Action:    "login",
+		Details:   "User logged in successfully",
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
 
 	c.JSON(http.StatusOK, models.LoginResponse{
 		Token: token,
@@ -336,6 +358,18 @@ func CreateSession(c *gin.Context) {
 		return
 	}
 
+	// Log activity
+	username, _ := c.Get("username")
+	activityLog := models.ActivityLog{
+		UserID:    userID,
+		Username:  username.(string),
+		Action:    "session_start",
+		Details:   "Started session for task: " + req.TaskID,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
+
 	c.JSON(http.StatusCreated, session)
 }
 
@@ -375,6 +409,11 @@ func GetSession(c *gin.Context) {
 // @Router /api/sessions/{id} [delete]
 func DeleteSession(c *gin.Context) {
 	sessionID := c.Param("id")
+	userID := c.GetUint("user_id")
+	username, _ := c.Get("username")
+
+	// Get session info before deleting
+	session, _ := sessionManager.GetSession(c.Request.Context(), sessionID)
 
 	if err := sessionManager.DeleteSession(c.Request.Context(), sessionID); err != nil {
 		c.JSON(http.StatusNotFound, models.ErrorResponse{
@@ -383,6 +422,21 @@ func DeleteSession(c *gin.Context) {
 		})
 		return
 	}
+
+	// Log activity
+	details := "Stopped session"
+	if session != nil {
+		details = "Stopped session for task: " + session.TaskID
+	}
+	activityLog := models.ActivityLog{
+		UserID:    userID,
+		Username:  username.(string),
+		Action:    "session_stop",
+		Details:   details,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
 
 	c.Status(http.StatusNoContent)
 }
@@ -424,6 +478,18 @@ func CheckSolution(c *gin.Context) {
 				CompletedAt: time.Now(),
 			}
 			database.DB.Create(&progress)
+
+			// Log activity
+			username, _ := c.Get("username")
+			activityLog := models.ActivityLog{
+				UserID:    userID,
+				Username:  username.(string),
+				Action:    "task_complete",
+				Details:   fmt.Sprintf("Completed task: %s (Score: %d/%d)", session.TaskID, result.Score, result.Total),
+				IPAddress: c.ClientIP(),
+				UserAgent: c.GetHeader("User-Agent"),
+			}
+			database.DB.Create(&activityLog)
 		}
 	}
 

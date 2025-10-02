@@ -55,6 +55,7 @@ func Migrate() error {
 		&models.User{},
 		&models.Session{},
 		&models.Progress{},
+		&models.ActivityLog{},
 	)
 
 	if err != nil {

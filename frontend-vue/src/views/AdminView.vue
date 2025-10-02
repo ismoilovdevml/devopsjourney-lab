@@ -11,6 +11,7 @@
           <p class="text-gray-400 mt-2">DevOps Lab - Real-time Monitoring & Management</p>
         </div>
         <div class="flex items-center gap-3">
+          <ThemeToggle />
           <router-link to="/lab" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
             ← Back to Lab
           </router-link>
@@ -216,8 +217,8 @@
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">ID</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Username</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Action</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Details</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">IP Address</th>
-                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">User Agent</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Time</th>
               </tr>
             </thead>
@@ -228,13 +229,15 @@
                 <td class="px-6 py-4 text-sm">
                   <span :class="[
                     'px-2 py-1 rounded-full text-xs font-medium',
-                    log.action === 'login' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    log.action === 'login' ? 'bg-green-500/20 text-green-400' :
+                    log.action.startsWith('admin') ? 'bg-red-500/20 text-red-400' :
+                    'bg-blue-500/20 text-blue-400'
                   ]">
                     {{ log.action }}
                   </span>
                 </td>
+                <td class="px-6 py-4 text-sm text-gray-400 truncate max-w-xs">{{ log.details || 'N/A' }}</td>
                 <td class="px-6 py-4 text-sm font-mono text-gray-400">{{ log.ip_address || 'N/A' }}</td>
-                <td class="px-6 py-4 text-sm text-gray-400 truncate max-w-xs">{{ log.user_agent || 'N/A' }}</td>
                 <td class="px-6 py-4 text-sm text-gray-400">{{ formatDate(log.created_at) }}</td>
               </tr>
             </tbody>
@@ -244,60 +247,9 @@
 
       <!-- Resources Tab -->
       <div v-if="activeTab === 'resources'" class="space-y-6">
-        <div v-for="resource in resources" :key="resource.sessionId" class="bg-slate-800/50 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6 hover:border-purple-500/40 transition-colors">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h3 class="text-lg font-semibold">Session: {{ resource.sessionId }}</h3>
-              <p class="text-sm text-gray-400">Container: {{ resource.containerId }}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-sm text-gray-400">Task: {{ resource.taskId }}</p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-gray-400">CPU Usage</span>
-                <span class="text-sm font-semibold text-purple-400">{{ resource.cpu }}%</span>
-              </div>
-              <div class="w-full bg-gray-700 rounded-full h-2">
-                <div class="bg-purple-500 h-2 rounded-full transition-all" :style="{ width: resource.cpu + '%' }"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-gray-400">Memory Usage</span>
-                <span class="text-sm font-semibold text-blue-400">{{ resource.memory.percent }}%</span>
-              </div>
-              <div class="w-full bg-gray-700 rounded-full h-2">
-                <div class="bg-blue-500 h-2 rounded-full transition-all" :style="{ width: resource.memory.percent + '%' }"></div>
-              </div>
-              <p class="text-xs text-gray-500 mt-1">
-                {{ formatBytes(resource.memory.usage) }} / {{ formatBytes(resource.memory.limit) }}
-              </p>
-            </div>
-
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-gray-400">Network</span>
-              </div>
-              <div class="space-y-1">
-                <p class="text-xs text-gray-400">
-                  <span class="text-green-400">↓ RX:</span> {{ formatBytes(resource.network.rx) }}
-                </p>
-                <p class="text-xs text-gray-400">
-                  <span class="text-red-400">↑ TX:</span> {{ formatBytes(resource.network.tx) }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div v-if="resources.length === 0" class="text-center py-12 text-gray-400">
           <Server class="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p>No active containers</p>
+          <p>No active containers / Coming soon...</p>
         </div>
       </div>
     </div>
@@ -342,20 +294,8 @@
                 </p>
               </div>
               <div>
-                <p class="text-sm text-gray-400">Status</p>
-                <p class="font-medium">
-                  <span :class="selectedUser.user.is_online ? 'text-green-400' : 'text-gray-400'">
-                    {{ selectedUser.user.is_online ? '🟢 Online' : '⚫ Offline' }}
-                  </span>
-                </p>
-              </div>
-              <div>
                 <p class="text-sm text-gray-400">Created</p>
                 <p class="font-medium">{{ formatDate(selectedUser.user.created_at) }}</p>
-              </div>
-              <div>
-                <p class="text-sm text-gray-400">Last Login</p>
-                <p class="font-medium">{{ formatDate(selectedUser.user.last_login) }}</p>
               </div>
             </div>
           </div>
@@ -367,9 +307,9 @@
               Sessions ({{ selectedUser.sessions.length }})
             </h3>
             <div class="space-y-2 max-h-60 overflow-y-auto">
-              <div v-for="sess in selectedUser.sessions" :key="sess.session_id" class="bg-slate-800 p-3 rounded border border-gray-700 hover:border-purple-500/50 transition-colors">
+              <div v-for="sess in selectedUser.sessions" :key="sess.session_id" class="bg-slate-800 p-3 rounded border border-gray-700">
                 <div class="flex justify-between text-sm">
-                  <span class="font-mono text-purple-400">{{ sess.session_id.substring(0, 20) }}...</span>
+                  <span class="font-mono text-purple-400">{{ sess.session_id || sess.id }}</span>
                   <span :class="sess.status === 'active' ? 'text-green-400' : 'text-gray-400'">{{ sess.status }}</span>
                 </div>
                 <div class="text-xs text-gray-400 mt-1">
@@ -389,7 +329,7 @@
               Progress ({{ selectedUser.progress.length }} tasks)
             </h3>
             <div class="space-y-2 max-h-60 overflow-y-auto">
-              <div v-for="prog in selectedUser.progress" :key="prog.task_id + prog.completed_at" class="bg-slate-800 p-3 rounded border border-gray-700 hover:border-purple-500/50 transition-colors">
+              <div v-for="prog in selectedUser.progress" :key="prog.id" class="bg-slate-800 p-3 rounded border border-gray-700">
                 <div class="flex justify-between text-sm">
                   <span class="font-medium">{{ prog.task_id }}</span>
                   <span :class="prog.passed ? 'text-green-400' : 'text-red-400'">
@@ -402,26 +342,6 @@
               </div>
               <div v-if="selectedUser.progress.length === 0" class="text-center text-gray-500 py-4">
                 No progress yet
-              </div>
-            </div>
-          </div>
-
-          <!-- Activity -->
-          <div class="bg-slate-900/50 rounded-lg p-4 border border-gray-700">
-            <h3 class="font-semibold mb-3 flex items-center gap-2">
-              <Activity class="w-5 h-5" />
-              Recent Activity
-            </h3>
-            <div class="space-y-2 max-h-60 overflow-y-auto">
-              <div v-for="act in selectedUser.activity" :key="act.created_at" class="bg-slate-800 p-3 rounded border border-gray-700 hover:border-purple-500/50 transition-colors">
-                <div class="flex justify-between text-sm">
-                  <span :class="act.action === 'login' ? 'text-green-400' : 'text-red-400'">{{ act.action }}</span>
-                  <span class="text-gray-400">{{ formatDate(act.created_at) }}</span>
-                </div>
-                <div class="text-xs text-gray-500 mt-1 font-mono">{{ act.ip_address }}</div>
-              </div>
-              <div v-if="selectedUser.activity.length === 0" class="text-center text-gray-500 py-4">
-                No activity
               </div>
             </div>
           </div>
@@ -540,35 +460,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Users, Activity, Server, CheckCircle, RefreshCw, Eye, Edit, Trash2, XCircle, X, AlertTriangle } from 'lucide-vue-next'
-import { api } from '@/services/api'
 import { useToast } from '@/composables/useToast'
+import { api } from '@/services/api'
 import ToastNotification from '@/components/ToastNotification.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const { success, error } = useToast()
-
-// Create axios instance with auth headers
-const createAuthRequest = (method: string, url: string, data?: any) => {
-  const token = localStorage.getItem('auth_token')
-  const headers: any = {
-    'Content-Type': 'application/json'
-  }
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-
-  const config: any = {
-    method,
-    url: `/api${url}`,  // Will use vite proxy
-    headers
-  }
-
-  if (data) {
-    config.data = data
-  }
-
-  return import('axios').then(axios => axios.default.request(config))
-}
 
 const activeTab = ref('users')
 const loading = ref(false)
@@ -612,53 +509,47 @@ const tabs = [
 
 const fetchStats = async () => {
   try {
-    const response = await createAuthRequest('GET', '/admin/stats')
-    stats.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch stats:', error)
+    stats.value = await api.adminStats()
+  } catch (err) {
+    console.error('Failed to fetch stats:', err)
   }
 }
 
 const fetchUsers = async () => {
   try {
-    const response = await createAuthRequest('GET', '/admin/users')
-    users.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch users:', error)
+    users.value = await api.adminUsers()
+  } catch (err) {
+    console.error('Failed to fetch users:', err)
   }
 }
 
 const fetchSessions = async () => {
   try {
-    const response = await createAuthRequest('GET', '/admin/sessions')
-    sessions.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch sessions:', error)
+    sessions.value = await api.adminSessions()
+  } catch (err) {
+    console.error('Failed to fetch sessions:', err)
   }
 }
 
 const fetchActivity = async () => {
   try {
-    const response = await createAuthRequest('GET', '/admin/activity')
-    activityLogs.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch activity:', error)
+    activityLogs.value = await api.adminActivity()
+  } catch (err) {
+    console.error('Failed to fetch activity:', err)
   }
 }
 
 const fetchResources = async () => {
   try {
-    const response = await createAuthRequest('GET', '/admin/resources')
-    resources.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch resources:', error)
+    resources.value = await api.adminResources()
+  } catch (err) {
+    console.error('Failed to fetch resources:', err)
   }
 }
 
 const viewUserDetails = async (user: any) => {
   try {
-    const response = await createAuthRequest('GET', `/admin/users/${user.id}`)
-    selectedUser.value = response.data
+    selectedUser.value = await api.adminUserDetails(user.id)
     showUserModal.value = true
   } catch (err) {
     console.error('Failed to fetch user details:', err)
@@ -692,7 +583,7 @@ const saveUser = async () => {
       updateData.password = editForm.value.password
     }
 
-    await createAuthRequest('PUT', `/admin/users/${editingUser.value.id}`, updateData)
+    await api.adminUpdateUser(editingUser.value.id, updateData)
 
     showEditModal.value = false
     await refreshAll()
@@ -717,7 +608,7 @@ const confirmDeleteUser = (user: any) => {
 const deleteUser = async (user: any) => {
   saving.value = true
   try {
-    await createAuthRequest('DELETE', `/admin/users/${user.id}`)
+    await api.adminDeleteUser(user.id)
     showConfirmDialog.value = false
     await refreshAll()
     success('User deleted successfully')
@@ -741,7 +632,7 @@ const confirmTerminateSession = (session: any) => {
 const terminateSession = async (session: any) => {
   saving.value = true
   try {
-    await createAuthRequest('POST', `/admin/sessions/${session.session_id}/terminate`)
+    await api.adminTerminateSession(session.session_id)
     showConfirmDialog.value = false
     await refreshAll()
     success('Session terminated successfully')
@@ -780,14 +671,6 @@ const formatDuration = (seconds: number) => {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}m ${secs}s`
-}
-
-const formatBytes = (bytes: number) => {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
 let refreshInterval: number | null = null

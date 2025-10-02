@@ -1,5 +1,6 @@
 <template>
   <div class="h-screen flex flex-col bg-gray-50 dark:bg-dark-950 transition-colors duration-300">
+    <ToastNotification />
     <!-- Header -->
     <header class="bg-white dark:bg-dark-900 border-b-2 border-gray-100 dark:border-dark-800 px-6 py-4 shadow-sm transition-colors duration-300">
       <div class="flex items-center justify-between">
@@ -166,11 +167,13 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTaskStore } from '@/stores/task'
 import { useSessionStore } from '@/stores/session'
+import { useToast } from '@/composables/useToast'
 import TaskDetail from '@/components/TaskDetail.vue'
 import CheckResults from '@/components/CheckResults.vue'
 import TerminalComponent from '@/components/Terminal.vue'
 import ProgressSummary from '@/components/ProgressSummary.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import ToastNotification from '@/components/ToastNotification.vue'
 import {
   Terminal, Trophy, Clock, LogOut, Play, CheckCircle,
   Loader2, RotateCcw, AlertCircle, ChevronLeft, ChevronRight, SkipForward
@@ -180,6 +183,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const taskStore = useTaskStore()
 const sessionStore = useSessionStore()
+const { success, error, info } = useToast()
 
 const currentTaskIndex = ref(0)
 const currentTask = computed(() => taskStore.tasks[currentTaskIndex.value])
@@ -235,29 +239,44 @@ async function handleStart() {
 
   if (!currentTask.value) {
     console.error('No current task!')
+    error('No task selected')
     return
   }
   try {
     await sessionStore.createSession(currentTask.value.id)
     console.log('Session created successfully')
-  } catch (error) {
-    console.error('Failed to start session:', error)
+    success(`Session started for ${currentTask.value.title}`)
+  } catch (err: any) {
+    console.error('Failed to start session:', err)
+    error('Failed to start session: ' + (err.response?.data?.message || err.message))
   }
 }
 
 async function handleCheck() {
   try {
     await sessionStore.checkSolution(currentTask.value?.id)
-  } catch (error) {
-    console.error('Failed to check solution:', error)
+    if (sessionStore.checkResult?.passed) {
+      success(`Task completed! Score: ${sessionStore.checkResult.score}/${sessionStore.checkResult.total}`)
+    } else {
+      info(`Keep trying! Score: ${sessionStore.checkResult?.score}/${sessionStore.checkResult?.total}`)
+    }
+  } catch (err: any) {
+    console.error('Failed to check solution:', err)
+    error('Failed to check solution')
   }
 }
 
 async function handleReset() {
-  await sessionStore.deleteSession()
-  // Don't clear task selection, just reload current task to keep description visible
-  if (currentTask.value) {
-    taskStore.loadTask(currentTask.value.id)
+  try {
+    await sessionStore.deleteSession()
+    success('Session stopped')
+    // Don't clear task selection, just reload current task to keep description visible
+    if (currentTask.value) {
+      taskStore.loadTask(currentTask.value.id)
+    }
+  } catch (err: any) {
+    console.error('Failed to stop session:', err)
+    error('Failed to stop session')
   }
 }
 

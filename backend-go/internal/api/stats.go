@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/devops-lab/backend/internal/auth"
@@ -162,6 +163,19 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Log activity
+	adminID := c.GetUint("user_id")
+	adminUsername, _ := c.Get("username")
+	activityLog := models.ActivityLog{
+		UserID:    adminID,
+		Username:  adminUsername.(string),
+		Action:    "admin_update_user",
+		Details:   "Admin updated user ID: " + userID,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
+
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
 
@@ -248,8 +262,15 @@ func GetAllSessions(c *gin.Context) {
 
 // GetActivityLogs returns recent activity logs (admin only)
 func GetActivityLogs(c *gin.Context) {
-	// TODO: Implement activity logging
-	c.JSON(http.StatusOK, []interface{}{})
+	var logs []models.ActivityLog
+
+	// Get last 100 activity logs
+	if err := database.DB.Order("created_at DESC").Limit(100).Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch activity logs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, logs)
 }
 
 // GetResources returns container resource usage (admin only)
@@ -262,10 +283,30 @@ func GetResources(c *gin.Context) {
 func TerminateSession(c *gin.Context) {
 	sessionID := c.Param("id")
 
+	// Get session info before deleting
+	session, _ := sessionManager.GetSession(c.Request.Context(), sessionID)
+
 	if err := sessionManager.DeleteSession(c.Request.Context(), sessionID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
+
+	// Log activity
+	adminID := c.GetUint("user_id")
+	adminUsername, _ := c.Get("username")
+	details := "Admin terminated session: " + sessionID
+	if session != nil {
+		details = fmt.Sprintf("Admin terminated session for user %d (task: %s)", session.UserID, session.TaskID)
+	}
+	activityLog := models.ActivityLog{
+		UserID:    adminID,
+		Username:  adminUsername.(string),
+		Action:    "admin_terminate_session",
+		Details:   details,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Session terminated successfully"})
 }
@@ -279,6 +320,19 @@ func DeleteUserByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
 		return
 	}
+
+	// Log activity
+	adminID := c.GetUint("user_id")
+	adminUsername, _ := c.Get("username")
+	activityLog := models.ActivityLog{
+		UserID:    adminID,
+		Username:  adminUsername.(string),
+		Action:    "admin_delete_user",
+		Details:   "Admin deleted user ID: " + userID,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+	}
+	database.DB.Create(&activityLog)
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
