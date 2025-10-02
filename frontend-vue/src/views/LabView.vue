@@ -1,11 +1,11 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50 dark:bg-dark-950 transition-colors duration-300">
+  <div class="h-screen flex flex-col bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
     <ToastNotification />
     <!-- Header -->
-    <header class="bg-white dark:bg-dark-900 border-b-2 border-gray-100 dark:border-dark-800 px-6 py-4 shadow-sm transition-colors duration-300">
+    <header class="bg-white dark:bg-slate-800 border-b-2 border-gray-100 dark:border-slate-700 px-6 py-4 shadow-sm transition-colors duration-300">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-indigo-600 dark:to-purple-600 p-2 rounded-xl shadow-lg">
+          <div class="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-indigo-500 dark:to-purple-500 p-2 rounded-xl shadow-lg">
             <Terminal class="w-7 h-7 text-white" />
           </div>
           <div>
@@ -17,19 +17,19 @@
         </div>
 
         <div class="flex items-center gap-3">
-          <div v-if="sessionStore.timeRemaining > 0" class="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-indigo-900/30 rounded-lg border border-blue-200 dark:border-indigo-700 transition-colors">
+          <div v-if="sessionStore.timeRemaining > 0" class="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-indigo-900/30 rounded-lg border border-blue-200 dark:border-indigo-600 transition-colors">
             <Clock class="w-4 h-4 text-blue-600 dark:text-indigo-400" />
             <span class="font-mono font-semibold text-blue-900 dark:text-indigo-300">{{ formatTime(sessionStore.timeRemaining) }}</span>
           </div>
 
           <ThemeToggle />
 
-          <button @click="showProgress = true" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-500 dark:to-pink-500 text-white hover:from-purple-700 hover:to-pink-700 dark:hover:from-purple-600 dark:hover:to-pink-600 rounded-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center gap-2">
+          <button @click="showProgress = true" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 text-white hover:from-purple-700 hover:to-pink-700 dark:hover:from-purple-500 dark:hover:to-pink-500 rounded-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center gap-2">
             <Trophy class="w-4 h-4" />
             Progress
           </button>
 
-          <router-link v-if="authStore.user?.role === 'admin'" to="/admin" class="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-500 dark:to-orange-500 text-white hover:from-red-700 hover:to-orange-700 dark:hover:from-red-600 dark:hover:to-orange-600 rounded-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center gap-2">
+          <router-link v-if="authStore.user?.role === 'admin'" to="/admin" class="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-400 dark:to-orange-400 text-white hover:from-red-700 hover:to-orange-700 dark:hover:from-red-500 dark:hover:to-orange-500 rounded-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center gap-2">
             <Shield class="w-4 h-4" />
             Admin
           </router-link>
@@ -39,7 +39,7 @@
             <p class="font-semibold text-gray-800 dark:text-gray-200">{{ authStore.user?.username }}</p>
           </div>
 
-          <button @click="handleLogout" class="px-4 py-2 bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-dark-600 rounded-lg font-semibold transition-all duration-300 hover:scale-105 flex items-center gap-2">
+          <button @click="handleLogout" class="px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-lg font-semibold transition-all duration-300 hover:scale-105 flex items-center gap-2">
             <LogOut class="w-4 h-4" />
             Logout
           </button>
@@ -50,20 +50,25 @@
     <!-- Main Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
-      <div class="w-[450px] bg-white dark:bg-dark-900 border-r-2 border-gray-100 dark:border-dark-800 flex flex-col shadow-sm transition-colors duration-300">
-        <div class="p-6 border-b-2 border-gray-100 dark:border-dark-800 transition-colors">
+      <div class="w-[450px] bg-white dark:bg-slate-800 border-r-2 border-gray-100 dark:border-slate-700 flex flex-col shadow-sm transition-colors duration-300">
+        <div class="p-6 border-b-2 border-gray-100 dark:border-slate-700 transition-colors">
           <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
             <Trophy class="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
             Challenge Navigation
           </h2>
 
           <!-- Current Task Display -->
-          <div v-if="currentTask" class="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-xl border-2 border-blue-100 dark:border-indigo-700 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-semibold text-blue-600 dark:text-indigo-400">Task {{ currentTaskIndex + 1 }} of {{ taskStore.tasks.length }}</span>
-              <span v-if="currentTask.completed" class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">✓ Completed</span>
+          <div v-if="currentTask" class="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-indigo-800/40 dark:to-purple-800/40 rounded-xl border-2 border-blue-100 dark:border-indigo-600 transition-colors">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-blue-500 dark:text-indigo-300">{{ currentTaskIndex + 1 }} / {{ taskStore.tasks.length }}</span>
+              <div class="flex items-center gap-2">
+                <span v-if="currentTask.points" class="text-xs px-2.5 py-1 bg-purple-100 dark:bg-purple-800/40 text-purple-700 dark:text-purple-300 rounded-full font-semibold">
+                  {{ currentTask.points }} pts
+                </span>
+                <span v-if="currentTask.completed" class="text-xs px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-semibold">✓ Done</span>
+              </div>
             </div>
-            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200">{{ currentTask.title }}</h3>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200 leading-tight">{{ currentTask.title }}</h3>
           </div>
 
           <!-- Navigation Buttons -->
@@ -71,7 +76,7 @@
             <button
               @click="handlePrevious"
               :disabled="!canGoPrevious"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-dark-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
             >
               <ChevronLeft class="w-4 h-4" />
               Previous
@@ -79,7 +84,7 @@
             <button
               @click="handleSkip"
               :disabled="!canGoNext"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-dark-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
             >
               Skip
               <SkipForward class="w-4 h-4" />
@@ -87,7 +92,7 @@
             <button
               @click="handleNext"
               :disabled="!canGoNext"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-dark-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
             >
               Next
               <ChevronRight class="w-4 h-4" />
@@ -99,7 +104,7 @@
               v-if="!sessionStore.hasActiveSession"
               @click="handleStart"
               :disabled="!currentTask || sessionStore.isCreating"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-600 dark:to-purple-600 text-white hover:from-blue-700 hover:to-indigo-700 dark:hover:from-indigo-700 dark:hover:to-purple-700 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-500 dark:to-purple-500 text-white hover:from-blue-700 hover:to-indigo-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
             >
               <Loader2 v-if="sessionStore.isCreating" class="w-5 h-5 animate-spin" />
               <Play v-else class="w-5 h-5" />
@@ -109,7 +114,7 @@
             <button
               v-else
               @click="handleReset"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 dark:from-red-500 dark:to-red-600 text-white hover:from-red-700 hover:to-red-800 dark:hover:from-red-600 dark:hover:to-red-700 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 dark:from-red-400 dark:to-red-500 text-white hover:from-red-700 hover:to-red-800 dark:hover:from-red-500 dark:hover:to-red-600 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
             >
               <RotateCcw class="w-5 h-5" />
               Stop Session
@@ -118,7 +123,7 @@
             <button
               @click="handleCheck"
               :disabled="!sessionStore.hasActiveSession || sessionStore.isChecking"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-500 dark:to-emerald-500 text-white hover:from-green-700 hover:to-emerald-700 dark:hover:from-green-600 dark:hover:to-emerald-600 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-dark-700 dark:disabled:to-dark-700 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-400 dark:to-emerald-400 text-white hover:from-green-700 hover:to-emerald-700 dark:hover:from-green-500 dark:hover:to-emerald-500 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-slate-700 dark:disabled:to-slate-700 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
             >
               <Loader2 v-if="sessionStore.isChecking" class="w-5 h-5 animate-spin" />
               <CheckCircle v-else class="w-5 h-5" />
@@ -126,21 +131,21 @@
             </button>
           </div>
 
-          <div v-if="sessionStore.error" class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl flex items-start gap-2 transition-colors">
+          <div v-if="sessionStore.error" class="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-xl flex items-start gap-2 transition-colors">
             <AlertCircle class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
             <p class="text-sm text-red-800 dark:text-red-300">{{ sessionStore.error }}</p>
           </div>
         </div>
 
         <!-- Task Description -->
-        <div class="flex-1 overflow-auto p-6 bg-gray-50/50 dark:bg-dark-900/50 transition-colors">
+        <div class="flex-1 overflow-auto p-6 bg-gray-50/50 dark:bg-slate-900/50 transition-colors">
           <TaskDetail v-if="taskStore.selectedTask" :task="taskStore.selectedTask" />
           <CheckResults v-if="sessionStore.checkResult" :result="sessionStore.checkResult" />
         </div>
       </div>
 
       <!-- Terminal Area -->
-      <div class="flex-1 bg-[#1e1e1e] dark:bg-black relative transition-colors duration-300">
+      <div class="flex-1 bg-[#1e1e1e] dark:bg-slate-900 relative transition-colors duration-300">
         <TerminalComponent v-if="sessionStore.sessionId" :session-id="sessionStore.sessionId" />
         <div v-else class="h-full flex items-center justify-center text-gray-400 dark:text-gray-600">
           <div class="text-center">

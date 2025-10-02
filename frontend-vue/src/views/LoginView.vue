@@ -78,18 +78,63 @@
           </p>
         </div>
 
-        <div v-if="authStore.error" class="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
-          <p class="text-sm text-red-800 dark:text-red-300 mb-3">{{ authStore.error }}</p>
-          <button
-            v-if="isLogin && authStore.error.includes('not found')"
-            @click="isLogin = false"
-            type="button"
-            class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
-          >
-            <UserPlus class="w-4 h-4" />
-            Ro'yxatdan o'tish / Register
-          </button>
-        </div>
+        <!-- Error Message - Beautiful Design -->
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 scale-95 -translate-y-2"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-95"
+        >
+          <div v-if="authStore.error" class="relative overflow-hidden">
+            <!-- Animated Background Gradient -->
+            <div class="absolute inset-0 bg-gradient-to-r from-red-50 via-orange-50 to-red-50 dark:from-red-900/20 dark:via-orange-900/20 dark:to-red-900/20 animate-gradient"></div>
+
+            <!-- Content -->
+            <div class="relative p-5 border-2 border-red-200 dark:border-red-700 rounded-2xl shadow-lg backdrop-blur-sm">
+              <div class="flex items-start gap-3 mb-3">
+                <!-- Icon with pulse animation -->
+                <div class="flex-shrink-0 mt-0.5">
+                  <div class="relative">
+                    <div class="absolute inset-0 bg-red-500 rounded-full opacity-20 animate-ping"></div>
+                    <AlertCircle class="relative w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                </div>
+
+                <!-- Error Text -->
+                <div class="flex-1">
+                  <h4 class="text-sm font-bold text-red-900 dark:text-red-300 mb-1">
+                    {{ isLogin ? 'Login Failed' : 'Registration Failed' }}
+                  </h4>
+                  <p class="text-sm text-red-800 dark:text-red-300 leading-relaxed">
+                    {{ authStore.error }}
+                  </p>
+                </div>
+
+                <!-- Close Button -->
+                <button
+                  @click="authStore.error = null"
+                  class="flex-shrink-0 p-1 hover:bg-red-200 dark:hover:bg-red-800/30 rounded-lg transition-colors"
+                  type="button"
+                >
+                  <XCircle class="w-4 h-4 text-red-600 dark:text-red-400" />
+                </button>
+              </div>
+
+              <!-- Action Button for "User not found" -->
+              <button
+                v-if="isLogin && authStore.error.includes('not found')"
+                @click="isLogin = false; authStore.error = null"
+                type="button"
+                class="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 dark:from-indigo-600 dark:to-purple-600 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
+              >
+                <UserPlus class="w-5 h-5" />
+                <span>Create New Account</span>
+              </button>
+            </div>
+          </div>
+        </Transition>
 
         <button
           type="submit"
@@ -109,7 +154,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Terminal, LogIn, Loader2, UserPlus } from 'lucide-vue-next'
+import { Terminal, LogIn, Loader2, UserPlus, AlertCircle, XCircle } from 'lucide-vue-next'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()

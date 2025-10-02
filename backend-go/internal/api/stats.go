@@ -8,6 +8,8 @@ import (
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/devops-lab/backend/internal/models"
 	"github.com/devops-lab/backend/internal/task"
+	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
 	"github.com/gin-gonic/gin"
 )
 
@@ -311,28 +313,82 @@ func TerminateSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Session terminated successfully"})
 }
 
-// DeleteUserByID deletes a user (admin only)
+// DeleteUserByID deletes a user and all related data (admin only)
 func DeleteUserByID(c *gin.Context) {
 	userID := c.Param("id")
 
-	// Delete user and all related data (cascade)
-	if err := database.DB.Delete(&models.User{}, userID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+	// Parse user ID
+	var uid uint
+	if _, err := fmt.Sscanf(userID, "%d", &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	// Log activity
+	// Get user info before deletion for logging
+	var user models.User
+	if err := database.DB.First(&user, uid).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Use transaction to delete all related data
+	err := database.WithTransaction(c.Request.Context(), func(tx *gorm.DB) error {
+		// Delete activity logs
+		if err := tx.Where("user_id = ?", uid).Delete(&models.ActivityLog{}).Error; err != nil {
+			return fmt.Errorf("failed to delete activity logs: %w", err)
+		}
+
+		// Delete progress records
+		if err := tx.Where("user_id = ?", uid).Delete(&models.Progress{}).Error; err != nil {
+			return fmt.Errorf("failed to delete progress: %w", err)
+		}
+
+		// Delete sessions
+		if err := tx.Where("user_id = ?", uid).Delete(&models.Session{}).Error; err != nil {
+			return fmt.Errorf("failed to delete sessions: %w", err)
+		}
+
+		// Finally delete the user
+		if err := tx.Delete(&models.User{}, uid).Error; err != nil {
+			return fmt.Errorf("failed to delete user: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error().Err(err).Uint("user_id", uid).Msg("Failed to delete user")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete user",
+			"message": "An error occurred while deleting the user and related data",
+		})
+		return
+	}
+
+	// Log activity (after successful deletion)
 	adminID := c.GetUint("user_id")
 	adminUsername, _ := c.Get("username")
 	activityLog := models.ActivityLog{
 		UserID:    adminID,
 		Username:  adminUsername.(string),
 		Action:    "admin_delete_user",
-		Details:   "Admin deleted user ID: " + userID,
+		Details:   fmt.Sprintf("Admin deleted user: %s (ID: %d)", user.Username, uid),
 		IPAddress: c.ClientIP(),
 		UserAgent: c.GetHeader("User-Agent"),
 	}
 	database.DB.Create(&activityLog)
 
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+	log.Info().
+		Uint("deleted_user_id", uid).
+		Str("deleted_username", user.Username).
+		Uint("admin_id", adminID).
+		Msg("User and all related data deleted successfully")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User and all related data deleted successfully",
+		"deleted": gin.H{
+			"id":       uid,
+			"username": user.Username,
+		},
+	})
 }

@@ -39,13 +39,21 @@ export default {
         'spin-slow': 'spin 3s linear infinite',
         'bounce-slow': 'bounce 2s infinite',
         'theme-switch': 'theme-switch 0.3s ease-in-out',
+        'gradient': 'gradient 3s ease infinite',
       },
       keyframes: {
         'theme-switch': {
           '0%': { transform: 'rotate(0deg) scale(1)' },
           '50%': { transform: 'rotate(180deg) scale(1.2)' },
           '100%': { transform: 'rotate(360deg) scale(1)' },
+        },
+        'gradient': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         }
+      },
+      backgroundSize: {
+        '200': '200% 200%',
       }
     },
   },

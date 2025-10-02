@@ -116,17 +116,23 @@ func Register(c *gin.Context) {
 	})
 
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		errMsg := err.Error()
+		// Check for duplicate username/email errors
+		if strings.Contains(errMsg, "already exists") ||
+		   strings.Contains(errMsg, "duplicate key") ||
+		   strings.Contains(errMsg, "idx_users_username") ||
+		   strings.Contains(errMsg, "idx_users_email") {
 			c.JSON(http.StatusConflict, models.ErrorResponse{
 				Error:   "User already exists",
-				Message: "Username or email is already registered",
+				Message: "Username or email is already registered. Please try a different one.",
 				Code:    http.StatusConflict,
 			})
 		} else {
 			log.Error().Err(err).Msg("Failed to create user")
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				Error: "Failed to create user",
-				Code:  http.StatusInternalServerError,
+				Error:   "Failed to create user",
+				Message: "An error occurred while creating your account. Please try again.",
+				Code:    http.StatusInternalServerError,
 			})
 		}
 		return
