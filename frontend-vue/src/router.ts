@@ -15,9 +15,11 @@ const APP_NAME = 'DevOps Journey Lab'
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(to, _from, saved) {
+  scrollBehavior(to, from, saved) {
     if (saved) return saved
     if (to.hash) return { el: to.hash }
+    // Query-only updates (filters, tabs) keep the current scroll position.
+    if (to.path === from.path) return false
     return { top: 0 }
   },
   routes: [
