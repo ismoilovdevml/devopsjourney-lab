@@ -1,69 +1,55 @@
 <!--
-  LoginView — STUB with a minimal working sign-in form so the app is usable during development.
-  Owned by the Login page agent; see design/Login.dc.html (two columns, servers.svg, login/register
-  tabs). Reference implementation: views/_legacy/LoginView.vue.
+  LoginView — public /login page (design/Login.dc.html).
+  Left: LoginShowcase (pitch, servers.svg, topic chips). Right: AuthCard (Kirish / Ro'yxatdan o'tish).
+  On success navigates to safeRedirect(route.query.redirect) or '/'.
 -->
 <template>
-  <main id="main" class="flex min-h-screen items-center justify-center p-4">
-    <Card as="div" class="w-full max-w-[420px]" padding="lg">
-      <div class="mb-6 flex flex-col gap-4">
-        <AppLogo />
-        <span class="cmd-line">$ ssh student@lab</span>
-        <h1 class="font-mono text-2xl font-bold">Kirish</h1>
-      </div>
-      <form class="flex flex-col gap-4" novalidate @submit.prevent="submit">
-        <div>
-          <label for="login-username" class="label">Foydalanuvchi nomi</label>
-          <input id="login-username" v-model.trim="username" class="input font-mono" autocomplete="username" required />
-        </div>
-        <div>
-          <label for="login-password" class="label">Parol</label>
-          <input
-            id="login-password"
-            v-model="password"
-            type="password"
-            class="input"
-            autocomplete="current-password"
-            required
-          />
-        </div>
-        <p v-if="error" class="text-[13px] text-danger" role="alert">{{ error }}</p>
-        <Button type="submit" variant="primary" size="lg" block :loading="auth.isLoading">Kirish</Button>
-      </form>
-    </Card>
+  <main id="main" class="flex min-h-screen flex-col text-text lg:flex-row lg:flex-wrap">
+    <LoginShowcase />
+    <section
+      aria-label="Hisobga kirish"
+      class="flex items-center justify-center px-4 py-8 sm:px-6 lg:flex-[1_1_460px] lg:py-12"
+    >
+      <AuthCard
+        v-model:mode="mode"
+        :loading="auth.isLoading"
+        :server-error="serverError"
+        @submit="submit"
+        @clear-server-error="serverError = null"
+      />
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import AppLogo from '@/components/ui/AppLogo.vue'
-import Button from '@/components/ui/Button.vue'
-import Card from '@/components/ui/Card.vue'
-import { errorMessage } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
+import AuthCard from '@/components/login/AuthCard.vue'
+import LoginShowcase from '@/components/login/LoginShowcase.vue'
+import { mapAuthError, type AuthErrorView, type AuthMode, type AuthSubmitPayload } from '@/components/login/validation'
 import { safeRedirect } from '@/router'
+import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const username = ref('')
-const password = ref('')
-const error = ref<string | null>(null)
+const mode = ref<AuthMode>(route.query.mode === 'register' ? 'register' : 'login')
+const serverError = ref<AuthErrorView | null>(null)
 
-async function submit() {
-  error.value = null
-  if (!username.value || !password.value) {
-    error.value = 'Foydalanuvchi nomi va parolni kiriting.'
+async function submit(payload: AuthSubmitPayload) {
+  if (auth.isLoading) return
+  serverError.value = null
+  try {
+    if (payload.mode === 'login') {
+      await auth.login({ username: payload.username, password: payload.password })
+    } else {
+      await auth.register({ username: payload.username, email: payload.email, password: payload.password })
+    }
+  } catch (err) {
+    serverError.value = mapAuthError(err, payload.mode)
     return
   }
-  try {
-    await auth.login({ username: username.value, password: password.value })
-    password.value = ''
-    await router.replace(safeRedirect(route.query.redirect) ?? { name: 'dashboard' })
-  } catch (err) {
-    error.value = errorMessage(err, "Foydalanuvchi nomi yoki parol noto'g'ri.")
-  }
+  await router.replace(safeRedirect(route.query.redirect) ?? '/')
 }
 </script>
