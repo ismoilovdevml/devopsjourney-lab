@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,147 +22,154 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// @title DevOps Lab API
-// @version 2.0
-// @description Enterprise DevOps Learning Platform API
-// @termsOfService http://swagger.io/terms/
-
-// @contact.name API Support
-// @contact.url http://www.devopslab.io/support
-// @contact.email support@devopslab.io
-
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
-
-// @host localhost:8080
-// @BasePath /
-// @schemes http https
-
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+const (
+	shutdownDrain   = 15 * time.Second
+	sessionShutdown = 10 * time.Second
+)
 
 func main() {
-	// Load configuration
 	cfg := configs.Load()
-	if err := cfg.Validate(); err != nil {
-		log.Fatal().Err(err).Msg("Invalid configuration")
-	}
-
-	// Initialize logger
 	logger.Init(cfg.Server.Environment)
 
-	log.Info().Msg("🚀 Starting DevOps Lab Backend v2.0")
+	if err := cfg.Validate(); err != nil {
+		log.Fatal().Msg("refusing to start: " + err.Error())
+	}
 
-	// Initialize Docker client
-	if err := docker.InitClient(cfg.Docker.Socket); err != nil {
+	if err := auth.InitJWT(&cfg.JWT); err != nil {
+		log.Fatal().Err(err).Msg("refusing to start: invalid JWT configuration")
+	}
+	auth.SetCookieSecure(cfg.Security.CookieSecure)
+
+	log.Info().Str("env", cfg.Server.Environment).Msg("Starting DevOps Journey Lab backend")
+
+	if err := docker.InitClient(cfg.Docker.Host); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize Docker client")
 	}
 	defer docker.Close()
 
-	// Connect to PostgreSQL
 	if err := database.Connect(&cfg.Database); err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to database")
 	}
 	defer database.Close()
 
-	// Run migrations
 	if err := database.Migrate(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to run migrations")
 	}
-
-	// Seed admin user from ENV
 	if err := database.SeedAdminUser(); err != nil {
 		log.Error().Err(err).Msg("Failed to seed admin user")
 	}
 
-	// Connect to Redis
 	if err := database.ConnectRedis(&cfg.Redis); err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to Redis")
 	}
 	defer database.CloseRedis()
 
-	// Optimize connection pool
 	if err := database.OptimizeConnectionPool(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to optimize connection pool")
 	}
 
-	// Initialize JWT
-	auth.InitJWT(&cfg.JWT)
-
-	// Load tasks
 	if err := task.Init(cfg.Docker.TasksDir); err != nil {
 		log.Fatal().Err(err).Msg("Failed to load tasks")
 	}
 
-	// Initialize WebSocket CORS
 	websocket.InitUpgrader(cfg.CORS.Origins)
-	log.Info().Strs("allowed_origins", cfg.CORS.Origins).Msg("WebSocket CORS configured")
 
-	// Initialize session manager
 	sessionManager := session.NewManager(&cfg.Docker)
+	// The expiry reaper API is owned by the session package; start it if the manager provides one.
+	if reaper, ok := any(sessionManager).(interface{ StartPeriodicCleanup(time.Duration) }); ok {
+		reaper.StartPeriodicCleanup(5 * time.Minute)
+	} else {
+		log.Warn().Msg("session manager has no StartPeriodicCleanup; relying on per-session expiry timers")
+	}
 
-	// Start periodic cleanup with CleanupManager
-	sessionManager.StartPeriodicCleanup(5 * time.Minute)
-	log.Info().Msg("Session cleanup manager started")
-
-	// Start connection pool monitor
 	poolMonitor := database.NewPoolMonitor(30 * time.Second)
 	poolMonitor.Start()
-	log.Info().Msg("Connection pool monitor started")
+	defer poolMonitor.Stop()
 
-	// Initialize API handlers
 	api.Init(sessionManager)
 
-	// Setup Gin
 	if cfg.Server.GinMode == "release" {
 		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(cfg.Server.GinMode)
 	}
 
 	router := gin.New()
+	// Only these proxies may set X-Forwarded-For; otherwise ClientIP() (rate limits, audit log)
+	// would be spoofable by any client.
+	if err := router.SetTrustedProxies(cfg.Security.TrustedProxies); err != nil {
+		log.Fatal().Err(err).Strs("trusted_proxies", cfg.Security.TrustedProxies).Msg("Invalid TRUSTED_PROXIES")
+	}
+	router.ForwardedByClientIP = true
+	router.RemoteIPHeaders = []string{"X-Forwarded-For", "X-Real-IP"}
+
 	api.SetupRoutes(router, cfg.CORS.Origins)
 
-	// Create HTTP server
 	srv := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":" + cfg.Server.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		// 0: long-lived WebSocket terminals manage their own deadlines (gorilla clears the
+		// server deadlines on upgrade and the handler sets per-write deadlines).
+		WriteTimeout:   0,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
 
-	// Start server in goroutine
+	serverErr := make(chan error, 1)
 	go func() {
 		log.Info().Str("port", cfg.Server.Port).Msg("Server listening")
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Server failed")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
 		}
 	}()
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	log.Info().Msg("Shutting down server...")
+	exitCode := 0
+	select {
+	case <-sigCtx.Done():
+		log.Info().Msg("Shutdown signal received, draining connections")
+	case err := <-serverErr:
+		log.Error().Err(err).Msg("HTTP server failed")
+		exitCode = 1
+	}
+	stop() // a second signal now terminates immediately
 
-	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownDrain)
 	defer cancel()
 
-	// Stop pool monitor
-	poolMonitor.Stop()
-	log.Info().Msg("Connection pool monitor stopped")
+	// 1. Stop accepting new connections and drain in-flight HTTP requests.
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error().Err(err).Msg("HTTP drain did not finish in time")
+		exitCode = 1
+	}
 
-	// Shutdown session manager (CleanupManager)
-	if err := sessionManager.Shutdown(10 * time.Second); err != nil {
+	// 2. Hijacked WebSocket connections are not tracked by Shutdown: close them explicitly
+	//    and give the handlers a moment to stop their docker exec sessions.
+	if n := websocket.CloseAll("server shutting down"); n > 0 {
+		log.Info().Int("count", n).Msg("Closed terminal sockets")
+		for websocket.ActiveConnections() > 0 && ctx.Err() == nil {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// 3. Stop session timers/cleanup.
+	if err := sessionManager.Shutdown(sessionShutdown); err != nil {
 		log.Error().Err(err).Msg("Session manager shutdown error")
 	}
 
-	// Shutdown HTTP server
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("Server forced to shutdown")
+	log.Info().Msg("Server stopped")
+	if exitCode != 0 {
+		// Run deferred cleanups (DB, Redis, Docker) before exiting non-zero.
+		func() {
+			poolMonitor.Stop()
+			_ = database.CloseRedis()
+			_ = database.Close()
+			_ = docker.Close()
+		}()
+		os.Exit(exitCode)
 	}
-
-	log.Info().Msg("Server stopped gracefully")
 }

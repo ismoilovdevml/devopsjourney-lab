@@ -5,199 +5,196 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
 
-// RateLimitConfig defines rate limiting parameters
+// RateLimitConfig defines fixed-window rate limiting parameters.
 type RateLimitConfig struct {
 	RequestsPerMinute int
-	BurstSize         int
+	BurstSize         int // kept for compatibility; the fixed window does not use it
 	KeyPrefix         string
 }
 
-// DefaultRateLimitConfig returns default rate limit configuration
+// DefaultRateLimitConfig returns default rate limit configuration.
 func DefaultRateLimitConfig() RateLimitConfig {
-	return RateLimitConfig{
-		RequestsPerMinute: 60,
-		BurstSize:         10,
-		KeyPrefix:         "ratelimit",
-	}
+	return RateLimitConfig{RequestsPerMinute: 60, BurstSize: 10, KeyPrefix: "ratelimit"}
 }
 
-// RateLimiter creates a rate limiting middleware
-func RateLimiter(cfg RateLimitConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Get identifier (user ID if authenticated, otherwise IP)
-		identifier := getIdentifier(c)
-		key := fmt.Sprintf("%s:%s", cfg.KeyPrefix, identifier)
+const rateWindow = time.Minute
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+// incrScript atomically increments the window counter and makes sure it has a TTL.
+var incrScript = redis.NewScript(`
+local c = redis.call('INCR', KEYS[1])
+if c == 1 or redis.call('TTL', KEYS[1]) < 0 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return {c, redis.call('TTL', KEYS[1])}
+`)
+
+// memoryLimiter is the fallback used when Redis is unavailable. It is per-process, so the
+// effective limit is multiplied by the replica count, but it never fails open.
+type memoryLimiter struct {
+	mu        sync.Mutex
+	buckets   map[string]*memBucket
+	lastSweep time.Time
+}
+
+type memBucket struct {
+	count int
+	reset time.Time
+}
+
+// redisSkipUntil (unix nanos) bypasses Redis for a short period after a failure.
+var redisSkipUntil atomic.Int64
+
+var fallbackLimiter = &memoryLimiter{buckets: make(map[string]*memBucket)}
+
+func (m *memoryLimiter) incr(key string, now time.Time) (int, time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if now.Sub(m.lastSweep) > rateWindow {
+		for k, b := range m.buckets {
+			if now.After(b.reset) {
+				delete(m.buckets, k)
+			}
+		}
+		m.lastSweep = now
+	}
+	b, ok := m.buckets[key]
+	if !ok || now.After(b.reset) {
+		b = &memBucket{reset: now.Add(rateWindow)}
+		m.buckets[key] = b
+	}
+	b.count++
+	return b.count, b.reset.Sub(now)
+}
+
+func (m *memoryLimiter) reset() {
+	m.mu.Lock()
+	m.buckets = make(map[string]*memBucket)
+	m.mu.Unlock()
+}
+
+// fallback logging is throttled so a Redis outage does not flood the logs.
+var (
+	fallbackLogMu   sync.Mutex
+	fallbackLogLast time.Time
+)
+
+func logFallback(err error) {
+	fallbackLogMu.Lock()
+	defer fallbackLogMu.Unlock()
+	if time.Since(fallbackLogLast) < time.Minute {
+		return
+	}
+	fallbackLogLast = time.Now()
+	log.Error().Err(err).Msg("rate limiter: Redis unavailable, using in-memory fallback limiter")
+}
+
+// hit records one request for key and returns the count in the current window and time until reset.
+func hit(key string) (int, time.Duration) {
+	now := time.Now()
+	if rc := database.RedisClient; rc != nil && now.UnixNano() >= redisSkipUntil.Load() {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
+		res, err := incrScript.Run(ctx, rc, []string{key}, int(rateWindow.Seconds())).Int64Slice()
+		if err == nil && len(res) == 2 {
+			ttl := time.Duration(res[1]) * time.Second
+			if ttl <= 0 {
+				ttl = rateWindow
+			}
+			return int(res[0]), ttl
+		}
+		if err == nil {
+			err = fmt.Errorf("unexpected script result %v", res)
+		}
+		// Short circuit-breaker: don't pay the Redis timeout on every request during an outage.
+		redisSkipUntil.Store(now.Add(10 * time.Second).UnixNano())
+		logFallback(err)
+	}
+	return fallbackLimiter.incr(key, now)
+}
 
-		// Check and increment rate limit
-		allowed, remaining, resetTime, err := checkRateLimit(ctx, key, cfg)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("identifier", identifier).
-				Msg("Rate limit check failed")
-			// Allow request on error to prevent blocking on Redis issues
+func limitHandler(limit int, keyFn func(*gin.Context) (string, bool), message string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key, ok := keyFn(c)
+		if !ok {
 			c.Next()
 			return
 		}
-
-		// Set rate limit headers
-		c.Header("X-RateLimit-Limit", strconv.Itoa(cfg.RequestsPerMinute))
+		count, resetIn := hit(key)
+		remaining := limit - count
+		if remaining < 0 {
+			remaining = 0
+		}
+		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
 		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime, 10))
+		c.Header("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(resetIn).Unix(), 10))
 
-		if !allowed {
-			retryAfter := resetTime - time.Now().Unix()
-			if retryAfter < 0 {
-				retryAfter = 60
+		if count > limit {
+			retry := int64(resetIn.Seconds())
+			if retry < 1 {
+				retry = 1
 			}
-
-			c.Header("Retry-After", strconv.FormatInt(retryAfter, 10))
-
-			log.Warn().
-				Str("identifier", identifier).
-				Str("ip", c.ClientIP()).
-				Str("path", c.Request.URL.Path).
-				Msg("Rate limit exceeded")
-
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "Rate limit exceeded",
-				"message":     fmt.Sprintf("Too many requests. Please try again in %d seconds.", retryAfter),
-				"retry_after": retryAfter,
+			c.Header("Retry-After", strconv.FormatInt(retry, 10))
+			log.Warn().Str("key", key).Str("path", c.Request.URL.Path).Msg("rate limit exceeded")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error":       "Too many requests",
+				"message":     message,
+				"code":        http.StatusTooManyRequests,
+				"retry_after": retry,
 			})
-			c.Abort()
 			return
 		}
-
 		c.Next()
 	}
 }
 
-// StrictRateLimiter creates a strict rate limiter for sensitive endpoints
-func StrictRateLimiter(requestsPerMinute int) gin.HandlerFunc {
-	return RateLimiter(RateLimitConfig{
-		RequestsPerMinute: requestsPerMinute,
-		BurstSize:         requestsPerMinute / 6,
-		KeyPrefix:         "strict_ratelimit",
-	})
+// AuthRateLimiter limits login/register to 10 requests per minute per client IP (shared
+// bucket for both endpoints). Redis-backed, with a logged in-memory fallback.
+func AuthRateLimiter() gin.HandlerFunc {
+	return limitHandler(10, func(c *gin.Context) (string, bool) {
+		return "ratelimit:auth:ip:" + c.ClientIP(), true
+	}, "Too many authentication attempts. Please try again later.")
 }
 
-// getIdentifier returns the rate limit identifier for a request
+// RateLimiter limits requests per user (if authenticated) or per client IP.
+func RateLimiter(cfg RateLimitConfig) gin.HandlerFunc {
+	prefix := cfg.KeyPrefix
+	if prefix == "" {
+		prefix = "ratelimit"
+	}
+	return limitHandler(cfg.RequestsPerMinute, func(c *gin.Context) (string, bool) {
+		return prefix + ":" + getIdentifier(c), true
+	}, "Too many requests. Please try again later.")
+}
+
+// StrictRateLimiter creates a strict rate limiter for sensitive endpoints.
+func StrictRateLimiter(requestsPerMinute int) gin.HandlerFunc {
+	return RateLimiter(RateLimitConfig{RequestsPerMinute: requestsPerMinute, KeyPrefix: "strict_ratelimit"})
+}
+
+// PerUserRateLimiter limits authenticated users only; anonymous requests pass through.
+func PerUserRateLimiter(requestsPerMinute int) gin.HandlerFunc {
+	return limitHandler(requestsPerMinute, func(c *gin.Context) (string, bool) {
+		uid, ok := c.Get("user_id")
+		if !ok {
+			return "", false
+		}
+		return fmt.Sprintf("user_ratelimit:user:%v", uid), true
+	}, "You have exceeded your request quota. Please try again later.")
+}
+
 func getIdentifier(c *gin.Context) string {
-	// Try to get user ID from context (if authenticated)
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, ok := c.Get("user_id"); ok {
 		return fmt.Sprintf("user:%v", userID)
 	}
-
-	// Fall back to IP address
-	return fmt.Sprintf("ip:%s", c.ClientIP())
-}
-
-// checkRateLimit checks if a request is allowed and increments the counter
-func checkRateLimit(ctx context.Context, key string, cfg RateLimitConfig) (allowed bool, remaining int, resetTime int64, err error) {
-	now := time.Now()
-	resetTime = now.Add(time.Minute).Unix()
-
-	// Get current count
-	count, err := database.RedisClient.Get(ctx, key).Int()
-	if err != nil && err.Error() != "redis: nil" {
-		return false, 0, resetTime, err
-	}
-
-	// Check if limit exceeded
-	if count >= cfg.RequestsPerMinute {
-		// Get TTL to determine reset time
-		ttl, _ := database.RedisClient.TTL(ctx, key).Result()
-		if ttl > 0 {
-			resetTime = now.Add(ttl).Unix()
-		}
-		return false, 0, resetTime, nil
-	}
-
-	// Increment counter
-	pipe := database.RedisClient.Pipeline()
-	incrCmd := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, time.Minute)
-	_, err = pipe.Exec(ctx)
-
-	if err != nil {
-		return false, 0, resetTime, err
-	}
-
-	newCount := int(incrCmd.Val())
-	remaining = cfg.RequestsPerMinute - newCount
-	if remaining < 0 {
-		remaining = 0
-	}
-
-	return true, remaining, resetTime, nil
-}
-
-// PerUserRateLimiter creates a rate limiter that only applies to authenticated users
-func PerUserRateLimiter(requestsPerMinute int) gin.HandlerFunc {
-	cfg := RateLimitConfig{
-		RequestsPerMinute: requestsPerMinute,
-		BurstSize:         requestsPerMinute / 6,
-		KeyPrefix:         "user_ratelimit",
-	}
-
-	return func(c *gin.Context) {
-		// Only apply to authenticated requests
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.Next()
-			return
-		}
-
-		key := fmt.Sprintf("%s:user:%v", cfg.KeyPrefix, userID)
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		allowed, remaining, resetTime, err := checkRateLimit(ctx, key, cfg)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Interface("user_id", userID).
-				Msg("Per-user rate limit check failed")
-			c.Next()
-			return
-		}
-
-		c.Header("X-RateLimit-Limit", strconv.Itoa(cfg.RequestsPerMinute))
-		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime, 10))
-
-		if !allowed {
-			retryAfter := resetTime - time.Now().Unix()
-			if retryAfter < 0 {
-				retryAfter = 60
-			}
-
-			c.Header("Retry-After", strconv.FormatInt(retryAfter, 10))
-
-			log.Warn().
-				Interface("user_id", userID).
-				Str("path", c.Request.URL.Path).
-				Msg("Per-user rate limit exceeded")
-
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "Rate limit exceeded",
-				"message":     "You have exceeded your request quota. Please try again later.",
-				"retry_after": retryAfter,
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
+	return "ip:" + c.ClientIP()
 }

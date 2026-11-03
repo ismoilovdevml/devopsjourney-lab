@@ -14,19 +14,21 @@ func LogActivity(c *gin.Context, action string, details string) {
 
 	activityLog := models.ActivityLog{
 		Action:    action,
-		Details:   details,
+		Details:   truncate(details, 1000),
 		IPAddress: c.ClientIP(),
-		UserAgent: c.GetHeader("User-Agent"),
+		UserAgent: truncate(c.GetHeader("User-Agent"), 255),
 	}
 
-	if userID != nil {
-		activityLog.UserID = userID.(uint)
+	if id, ok := userID.(uint); ok {
+		activityLog.UserID = id
+	}
+	if name, ok := username.(string); ok {
+		activityLog.Username = name
 	}
 
-	if username != nil {
-		activityLog.Username = username.(string)
+	if database.DB == nil {
+		return
 	}
-
 	if err := database.DB.Create(&activityLog).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to log activity")
 	}
@@ -38,11 +40,21 @@ func LogActivityDirect(userID uint, username, action, details, ipAddress string)
 		UserID:    userID,
 		Username:  username,
 		Action:    action,
-		Details:   details,
+		Details:   truncate(details, 1000),
 		IPAddress: ipAddress,
 	}
 
+	if database.DB == nil {
+		return
+	}
 	if err := database.DB.Create(&activityLog).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to log activity")
 	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }

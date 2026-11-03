@@ -2,6 +2,7 @@ package database
 
 import (
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -9,10 +10,11 @@ import (
 
 // PoolMonitor monitors and adjusts database connection pool
 type PoolMonitor struct {
-	ticker       *time.Ticker
-	stop         chan bool
-	minConns     int
-	maxConns     int
+	ticker        *time.Ticker
+	stop          chan struct{}
+	stopOnce      sync.Once
+	minConns      int
+	maxConns      int
 	checkInterval time.Duration
 }
 
@@ -21,7 +23,7 @@ func NewPoolMonitor(checkInterval time.Duration) *PoolMonitor {
 	cpuCount := runtime.NumCPU()
 	return &PoolMonitor{
 		ticker:        time.NewTicker(checkInterval),
-		stop:          make(chan bool),
+		stop:          make(chan struct{}),
 		minConns:      cpuCount * 2,
 		maxConns:      cpuCount * 25,
 		checkInterval: checkInterval,
@@ -49,14 +51,19 @@ func (pm *PoolMonitor) Start() {
 	}()
 }
 
-// Stop stops the pool monitor
+// Stop stops the pool monitor. Safe to call more than once, and does not block if Start was never called.
 func (pm *PoolMonitor) Stop() {
-	pm.ticker.Stop()
-	pm.stop <- true
+	pm.stopOnce.Do(func() {
+		pm.ticker.Stop()
+		close(pm.stop)
+	})
 }
 
 // adjustPool dynamically adjusts the connection pool based on metrics
 func (pm *PoolMonitor) adjustPool() {
+	if DB == nil {
+		return
+	}
 	sqlDB, err := DB.DB()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get database connection")
@@ -91,7 +98,10 @@ func (pm *PoolMonitor) adjustPool() {
 			Msg("Increased connection pool size")
 	}
 
-	// Decrease pool if too many idle connections
+	// Decrease pool if too many idle connections (MaxOpenConnections==0 means unlimited)
+	if stats.MaxOpenConnections <= 0 {
+		return
+	}
 	idleRatio := float64(stats.Idle) / float64(stats.MaxOpenConnections)
 	if idleRatio > 0.7 && stats.MaxOpenConnections > pm.minConns {
 		newMax := stats.MaxOpenConnections - 5
