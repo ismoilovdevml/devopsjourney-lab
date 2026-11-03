@@ -1,373 +1,118 @@
-# 🚀 DevOps Journey Lab
+# DevOps Journey Lab
 
-Enterprise-grade DevOps learning platform built with **Go** and **Vue.js**.
+Hands-on DevOps practice in the browser. Each student gets a real Linux shell in an isolated
+container, solves a task (Nginx, Docker, systemd, users, firewall, cron), and the platform checks
+the result automatically.
 
-## 🏗️ Architecture
+![Dashboard](docs/screenshots/dashboard.png)
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  DevOps Journey Lab                     │
-├─────────────────┬─────────────────┬────────────────────┤
-│   Frontend      │    Backend      │    Database        │
-│   (Vue.js)      │    (Go)         │    (PostgreSQL)    │
-│   + TypeScript  │    + Gin        │    + Redis         │
-│   + Tailwind    │    + GORM       │                    │
-│   + Nginx       │    + Docker SDK │                    │
-└─────────────────┴─────────────────┴────────────────────┘
-```
+## Features
 
-### 🎯 Tech Stack
+- **Real terminal**: xterm.js over a WebSocket into a per-student container. Labs are recreated with one click.
+- **Automatic checks**: every task has scripted checks with per-check feedback, hints and a reference solution.
+- **Progress**: XP, streaks, skills per category, achievements and a weekly / monthly / all-time leaderboard.
+- **Admin console**: users, live sessions (kill), activity log, container resources and task reload.
+- **Secure by default**:
+  - httpOnly cookie auth and CSRF origin checks;
+  - hardened lab containers: no network, all capabilities dropped, resource limits;
+  - Docker API only through a socket proxy;
+  - strict CSP.
 
-- **Frontend:** Vue 3 + TypeScript + Tailwind CSS + Vite
-- **Backend:** Go 1.24 + Gin + GORM + JWT
-- **Database:** PostgreSQL 17 + Redis 7
-- **Infrastructure:** Docker + Docker Compose
-- **Terminal:** Xterm.js for in-browser shell
+| Tasks | Lab |
+|---|---|
+| ![Tasks](docs/screenshots/tasks.png) | ![Lab](docs/screenshots/lab.png) |
+| **Progress** | **Leaderboard** |
+| ![Progress](docs/screenshots/progress.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
+| **Admin** | **Login** |
+| ![Admin](docs/screenshots/admin-overview.png) | ![Login](docs/screenshots/login.png) |
 
----
+<p align="center">
+  <img src="docs/screenshots/mobile-dashboard.png" width="240" alt="Mobile dashboard">
+  &nbsp;
+  <img src="docs/screenshots/mobile-lab.png" width="240" alt="Mobile lab">
+</p>
 
-## 🚦 Quick Start
+## Quick start
 
-### 1️⃣ Prerequisites
-
-- Docker & Docker Compose
-- Git
-
-### 2️⃣ Clone & Setup
+You need Docker with Compose v2, `make` and `openssl`.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/ismoilovdevml/devopsjourney-lab.git
 cd devopsjourney-lab
+make secrets   # creates .env with random secrets
+make up        # builds and starts everything, including the lab image
 ```
 
-### 3️⃣ Configure Environment
+Open <http://localhost:8088> and sign in as `admin`. The password is `ADMIN_PASSWORD` in `.env`.
+Students register on the login page.
+
+Stop the stack with `make down`. Run `make help` for every command.
+
+## Tasks
+
+| # | Task | Topic | Level |
+|---|---|---|---|
+| 1 | Nginx Web Server Setup | Web | Easy |
+| 2 | Dockerfile & Compose Authoring | Containers | Medium |
+| 3 | Systemd Service Creation | Services | Medium |
+| 4 | Linux User & Permission Management | Users | Easy |
+| 5 | UFW Firewall Configuration | Network | Medium |
+| 6 | Cron Job & Backup Automation | Automation | Hard |
+
+Tasks unlock in order. Each lives in `backend-go/tasks/<id>/` as a `task.yaml` (checks, hints, points)
+and a `README.md` shown to the student. Run `POST /api/admin/tasks/reload` (or the reload button in
+Admin) to pick up changes.
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Vue 3, TypeScript, Tailwind, Pinia, xterm.js, Vite |
+| Backend | Go, Gin, GORM, PostgreSQL, Redis, Docker Engine API |
+| Runtime | nginx (unprivileged), docker-socket-proxy, Ubuntu 24.04 lab image |
+| Tests | Go unit + integration tests, Playwright end-to-end (desktop and mobile) |
+
+```
+backend-go/     Go API, WebSocket terminal, lab runtime, tasks, lab image
+frontend-vue/   Vue SPA and nginx config
+e2e/            Playwright tests and reference solutions
+docs/           API contract and screenshots
+design/         UI design handoff
+```
+
+## Development
 
 ```bash
-cp .env.example .env
-# Edit .env and change admin credentials
-nano .env
-```
+make secrets && make lab-image
+make dev-deps                    # postgres + redis on 127.0.0.1
 
-**Important ENV Variables:**
-```bash
-# Admin User (CHANGE IN PRODUCTION!)
-SEED_ADMIN=true
-ADMIN_USERNAME=admin
-ADMIN_EMAIL=admin@devopslab.com
-ADMIN_PASSWORD=admin123
-
-# JWT Secret (MUST CHANGE!)
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-```
-
-### 4️⃣ Build Student Lab Image
-
-```bash
-docker build -f backend-go/Dockerfile.devops -t devopslab:latest backend-go/
-```
-
-### 5️⃣ Start Platform
-
-```bash
-docker-compose up -d
-```
-
-### 6️⃣ Access Platform
-
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8080/api
-- **Health Check:** http://localhost:8080/healthz
-
----
-
-## 📂 Project Structure
-
-```
-devopsjourney-lab/
-├── backend-go/              # Go Backend
-│   ├── cmd/                 # Application entrypoint
-│   │   └── server/main.go
-│   ├── configs/             # Configuration
-│   ├── internal/            # Internal packages
-│   │   ├── api/             # HTTP handlers
-│   │   ├── auth/            # Authentication (JWT, bcrypt)
-│   │   ├── database/        # Database & migrations
-│   │   ├── docker/          # Docker client
-│   │   ├── middleware/      # Gin middlewares
-│   │   ├── models/          # Data models
-│   │   ├── session/         # Session management
-│   │   ├── task/            # Task loader
-│   │   └── websocket/       # WebSocket terminal
-│   ├── pkg/                 # Public packages
-│   ├── tasks/               # DevOps challenge definitions
-│   ├── Dockerfile           # Production backend image
-│   ├── go.mod
-│   └── go.sum
-│
-├── frontend-vue/            # Vue Frontend
-│   ├── src/                 # Vue source code
-│   │   ├── components/      # Vue components
-│   │   ├── router/          # Vue Router
-│   │   ├── stores/          # Pinia state management
-│   │   ├── views/           # Page views
-│   │   └── main.ts
-│   ├── Dockerfile           # Production frontend image
-│   ├── nginx.conf           # Nginx configuration
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── docker-compose.yml       # Multi-container orchestration
-├── .env.example             # Environment template
-├── .gitignore
-└── README.md
-```
-
----
-
-## 🔧 Services
-
-### PostgreSQL (Port 5432)
-- Database for users, sessions, progress
-- Auto-initialized with migrations
-
-### Redis (Port 6379)
-- Session caching
-- Rate limiting
-
-### Backend (Port 8080)
-- REST API (Gin framework)
-- WebSocket terminal
-- Docker container orchestration
-- JWT authentication
-
-### Frontend (Port 3000)
-- Vue.js SPA
-- Nginx reverse proxy
-- Real-time terminal via WebSocket
-
----
-
-## 📋 Available Commands
-
-### Development
-
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop all services
-docker-compose down
-
-# Restart backend only
-docker-compose restart backend
-
-# Rebuild backend
-docker-compose up -d --build backend
-```
-
-### Database
-
-```bash
-# Access PostgreSQL
-docker exec -it devopslab-postgres psql -U devopslab
-
-# View tables
-docker exec -it devopslab-postgres psql -U devopslab -c "\dt"
-```
-
-### Backend Development
-
-```bash
+# backend on :8080, reusing the passwords from .env
 cd backend-go
+set -a; . ../.env; set +a
+ENVIRONMENT=development DB_HOST=localhost REDIS_HOST=localhost go run ./cmd/server
 
-# Run locally (requires Go 1.24+)
-go run cmd/server/main.go
-
-# Run tests
-go test ./...
-
-# Build binary
-go build -o server cmd/server/main.go
+# frontend on :5173 (proxies /api and /ws to :8080)
+cd frontend-vue && npm ci && npm run dev
 ```
 
-### Frontend Development
+Tests:
 
 ```bash
-cd frontend-vue
-
-# Install dependencies
-npm install
-
-# Dev server
-npm run dev
-
-# Build for production
-npm run build
+make test                     # go vet + go test -race, frontend lint/typecheck/build
+make up && make e2e           # Playwright against the running stack
+scripts/smoke.sh              # quick API smoke test against the running stack
 ```
 
----
+## Production
 
-## 🔐 Authentication
+- Put a TLS-terminating proxy in front of port 8088. Then set:
+  - `COOKIE_SECURE=true`;
+  - `CORS_ORIGINS` to your HTTPS origin;
+  - `NGINX_REAL_IP_FROM` to the proxy address.
+- Use a dedicated host. For stronger isolation run labs under gVisor (`LAB_RUNTIME=runsc`).
+  Read [SECURITY.md](SECURITY.md) before going live.
+- Every setting is documented in [.env.example](.env.example). The API is described in [docs/API.md](docs/API.md).
 
-### Admin User
+## License
 
-Admin user is automatically created on first run if `SEED_ADMIN=true`:
-
-- **Username:** `admin` (from ENV)
-- **Email:** `admin@devopslab.com` (from ENV)
-- **Password:** `admin123` (from ENV)
-- **Role:** `admin`
-
-**⚠️ IMPORTANT:** Change admin credentials in `.env` before production deployment!
-
-### User Registration
-
-Students can register at `/register`:
-- Username (min 3 chars)
-- Email (valid format)
-- Password (min 8 chars)
-- Auto-assigned role: `student`
-
-### JWT Authentication
-
-- Token expiration: 24h (configurable via `JWT_EXPIRATION`)
-- Stored in localStorage
-- Sent via `Authorization: Bearer <token>` header
-
----
-
-## 🎓 Features
-
-✅ **Multi-user support** - Students and admins
-✅ **Real-time terminal** - Browser-based shell via WebSocket
-✅ **Docker isolation** - Each session in separate container
-✅ **Auto-cleanup** - Sessions expire after 1 hour (configurable)
-✅ **Progress tracking** - Save scores and completion status
-✅ **Task validation** - Automated checking with custom validators
-✅ **Admin dashboard** - User management, session monitoring
-✅ **ENV-based config** - No hardcoded credentials
-
----
-
-## 🛡️ Security
-
-- ✅ Passwords hashed with bcrypt
-- ✅ JWT-based authentication
-- ✅ CORS configured for specific origins
-- ✅ Rate limiting via Redis
-- ✅ Container resource limits (CPU, Memory, PIDs)
-- ✅ Admin credentials from ENV only
-
----
-
-## 📊 Monitoring
-
-### Health Check
-
-```bash
-curl http://localhost:8080/healthz
-```
-
-Response:
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-10-02T10:30:00Z",
-  "version": "2.0.0",
-  "uptime": "2h30m15s"
-}
-```
-
-### Prometheus (Optional)
-
-Enable monitoring:
-```bash
-PROMETHEUS_ENABLED=true
-PROMETHEUS_PORT=9090
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Backend won't start
-
-```bash
-# Check logs
-docker-compose logs backend
-
-# Common issue: PostgreSQL not ready
-# Wait 10-20 seconds and restart
-docker-compose restart backend
-```
-
-### Database connection failed
-
-```bash
-# Check PostgreSQL health
-docker-compose ps postgres
-
-# Restart database
-docker-compose restart postgres
-```
-
-### Frontend can't reach backend
-
-1. Check CORS origins in `.env`:
-   ```bash
-   CORS_ORIGINS=http://localhost:3000,http://localhost:80
-   ```
-
-2. Verify backend is running:
-   ```bash
-   curl http://localhost:8080/healthz
-   ```
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details
-
----
-
-## 👨‍💻 Author
-
-Built with ❤️ for DevOps learners
-
----
-
-## 📞 Support
-
-- 📧 Email: support@devopslab.com
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/devopsjourney-lab/issues)
-- 📖 Docs: [Wiki](https://github.com/yourusername/devopsjourney-lab/wiki)
-
----
-
-## 🎯 Roadmap
-
-- [ ] Kubernetes deployment
-- [ ] CI/CD pipeline examples
-- [ ] More DevOps challenges
-- [ ] Multi-language support
-- [ ] Mobile responsive UI
-- [ ] Team/classroom mode
-- [ ] Leaderboard system
-
----
-
-**Happy Learning! 🚀**
+[MIT](LICENSE)
