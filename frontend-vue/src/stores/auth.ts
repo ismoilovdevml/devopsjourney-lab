@@ -1,69 +1,110 @@
+/**
+ * Auth store. The user lives in memory only; the JWT is an httpOnly cookie the JS never sees.
+ *
+ * State:   user, initialized, isLoading
+ * Getters: isAuthenticated, isAdmin, initials
+ * Actions: init() (GET /api/me once; safe to await many times), login(), register(), logout(),
+ *          refresh(), setUser(), clear()
+ * login/register throw `ApiError` on failure (use `errorMessage(err)` from services/api).
+ */
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '@/services/api'
-import type { User, LoginRequest, RegisterRequest } from '@/types'
+import type { LoginRequest, RegisterRequest, User } from '@/types'
+import { useSessionStore } from './session'
+import { useTaskStore } from './task'
 
 export const useAuthStore = defineStore('auth', () => {
-  // Initialize user from localStorage
-  const storedUser = localStorage.getItem('user')
-  const user = ref<User | null>(storedUser ? JSON.parse(storedUser) : null)
-  const token = ref<string | null>(localStorage.getItem('auth_token'))
+  const user = ref<User | null>(null)
+  const initialized = ref(false)
   const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  let initPromise: Promise<void> | null = null
 
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAuthenticated = computed(() => user.value !== null)
+  const isAdmin = computed(() => user.value?.role === 'admin')
+  const initials = computed(() => (user.value?.username ?? '').slice(0, 2).toUpperCase())
 
-  async function login(credentials: LoginRequest) {
-    isLoading.value = true
-    error.value = null
+  /** Resolve the current user from the cookie. Runs the request only once per page load. */
+  function init(): Promise<void> {
+    if (!initPromise) {
+      initPromise = (async () => {
+        try {
+          user.value = await api.getMe()
+        } catch {
+          user.value = null
+        } finally {
+          initialized.value = true
+        }
+      })()
+    }
+    return initPromise
+  }
+
+  async function refresh(): Promise<void> {
     try {
-      const response = await api.login(credentials)
-      token.value = response.token
-      user.value = response.user
-      localStorage.setItem('auth_token', response.token)
-      localStorage.setItem('username', response.user.username)
-      return true
-    } catch (err: any) {
-      error.value = err.response?.data?.message || err.response?.data?.error || 'Login failed'
-      return false
+      user.value = await api.getMe()
+    } catch {
+      user.value = null
+    }
+  }
+
+  async function login(credentials: LoginRequest): Promise<User> {
+    isLoading.value = true
+    try {
+      user.value = await api.login(credentials)
+      initialized.value = true
+      return user.value
     } finally {
       isLoading.value = false
     }
   }
 
-  async function register(userData: RegisterRequest) {
+  async function register(payload: RegisterRequest): Promise<User> {
     isLoading.value = true
-    error.value = null
     try {
-      const response = await api.register(userData)
-      token.value = response.token
-      user.value = response.user
-      localStorage.setItem('auth_token', response.token)
-      localStorage.setItem('username', response.user.username)
-      return true
-    } catch (err: any) {
-      error.value = err.response?.data?.message || err.response?.data?.error || 'Registration failed'
-      return false
+      user.value = await api.register(payload)
+      initialized.value = true
+      return user.value
     } finally {
       isLoading.value = false
     }
   }
 
-  function logout() {
+  /** Clears the cookie server-side (best effort) and resets all user-scoped state. */
+  async function logout(): Promise<void> {
+    try {
+      await api.logout()
+    } catch {
+      // Cookie may already be invalid; local state is cleared regardless.
+    } finally {
+      clear()
+    }
+  }
+
+  function setUser(next: User): void {
+    user.value = next
+  }
+
+  /** Drop all user-scoped client state (used on logout and on any 401). */
+  function clear(): void {
     user.value = null
-    token.value = null
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('username')
+    useSessionStore().clear()
+    useTaskStore().clear()
   }
 
   return {
     user,
-    token,
+    initialized,
     isLoading,
-    error,
     isAuthenticated,
+    isAdmin,
+    initials,
+    init,
+    refresh,
     login,
     register,
-    logout
+    logout,
+    setUser,
+    clear
   }
 })

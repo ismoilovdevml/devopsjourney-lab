@@ -1,61 +1,75 @@
 /** @type {import('tailwindcss').Config} */
+// Design tokens: see design/DESIGN.md section 1. Dark theme only.
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{vue,js,ts,jsx,tsx}",
-  ],
-  darkMode: 'class',
+  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}', '!./src/views/_legacy/**'],
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+        bg: '#0A0E14',
+        surface: {
+          DEFAULT: 'rgba(15,21,32,0.85)',
+          solid: '#0F1520',
+          2: '#0B1018',
+          3: '#141C2A'
         },
-        dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617',
-        }
-      },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin-slow': 'spin 3s linear infinite',
-        'bounce-slow': 'bounce 2s infinite',
-        'theme-switch': 'theme-switch 0.3s ease-in-out',
-        'gradient': 'gradient 3s ease infinite',
-      },
-      keyframes: {
-        'theme-switch': {
-          '0%': { transform: 'rotate(0deg) scale(1)' },
-          '50%': { transform: 'rotate(180deg) scale(1.2)' },
-          '100%': { transform: 'rotate(360deg) scale(1)' },
+        raised: '#1B2535',
+        terminal: '#070A0F',
+        titlebar: '#111824',
+        border: {
+          DEFAULT: '#1F2A3A',
+          strong: '#243247',
+          stronger: '#2A3850'
         },
-        'gradient': {
-          '0%, 100%': { backgroundPosition: '0% 50%' },
-          '50%': { backgroundPosition: '100% 50%' },
-        }
+        divider: '#1A2332',
+        text: {
+          DEFAULT: '#E6EDF3',
+          2: '#C9D4E0'
+        },
+        muted: '#94A3B8',
+        faint: '#64748B',
+        accent: {
+          DEFAULT: '#3DDC97',
+          hover: '#7EF0BE',
+          ink: '#04130C'
+        },
+        info: '#38BDF8',
+        warn: '#F5B342',
+        danger: '#F87171',
+        violet: '#A78BFA',
+        rose: '#FB7185',
+        teal: '#2DD4BF',
+        gold: '#F5B342',
+        silver: '#C9D4E0',
+        bronze: '#E0915A'
       },
-      backgroundSize: {
-        '200': '200% 200%',
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+      },
+      fontSize: {
+        meta: ['12.5px', { lineHeight: '1.45' }],
+        hero: ['34px', { lineHeight: '1.15', letterSpacing: '-0.02em', fontWeight: '700' }],
+        title: ['30px', { lineHeight: '1.2', letterSpacing: '-0.01em', fontWeight: '700' }]
+      },
+      borderRadius: {
+        chip: '6px',
+        ctl: '9px',
+        btn: '10px',
+        card: '14px',
+        panel: '16px',
+        hero: '18px'
+      },
+      boxShadow: {
+        glow: '0 0 24px rgba(61,220,151,.35)',
+        'glow-sm': '0 0 8px #3DDC97',
+        ring: 'inset 0 0 0 1px #243247',
+        'ring-strong': 'inset 0 0 0 1px #2A3850',
+        selected: '0 0 0 3px rgba(61,220,151,.15)'
+      },
+      maxWidth: {
+        container: '1320px'
       }
-    },
+    }
   },
-  plugins: [],
+  plugins: []
 }

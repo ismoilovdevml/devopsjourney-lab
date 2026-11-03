@@ -1,132 +1,173 @@
+/**
+ * Active lab session (one per user, enforced by the backend).
+ *
+ * State:   session (SessionResponse | null), lastCheck, expired, isRestoring/isStarting/isRecreating/
+ *          isStopping/isChecking
+ * Getters: sessionId, taskId, expiresAt (Date | null), isActive, remainingSeconds (ticks every 1s),
+ *          remainingLabel ("mm:ss" or "h:mm:ss")
+ * Actions: restore() (GET /api/sessions/active), start(taskId), recreate(), stop(), check(), clear()
+ * Actions throw `ApiError` on failure. When the timer reaches 0 the session is cleared and
+ * `expired` is set to true (reset by the next start/restore).
+ */
 import { defineStore } from 'pinia'
-import { ref, computed, onScopeDispose } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '@/services/api'
-import type { SessionResponse, CheckResponse } from '@/types'
+import type { CheckResponse, SessionResponse } from '@/types'
+
+function deadlineOf(s: SessionResponse): number {
+  const t = Date.parse(s.expiresAt)
+  return Number.isNaN(t) ? Date.now() + s.ttlSeconds * 1000 : t
+}
+
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const mm = String(m).padStart(2, '0')
+  const ss = String(sec).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
 
 export const useSessionStore = defineStore('session', () => {
-  // Load from localStorage on init
-  const sessionId = ref<string | null>(localStorage.getItem('session_id'))
-  const expiresAt = ref<Date | null>(null)
-  const timeRemaining = ref(parseInt(localStorage.getItem('time_remaining') || '0'))
-  const isCreating = ref(false)
+  const session = ref<SessionResponse | null>(null)
+  const lastCheck = ref<CheckResponse | null>(null)
+  const expired = ref(false)
+  const isRestoring = ref(false)
+  const isStarting = ref(false)
+  const isRecreating = ref(false)
+  const isStopping = ref(false)
   const isChecking = ref(false)
-  const checkResult = ref<CheckResponse | null>(null)
-  const error = ref<string | null>(null)
 
-  // Track interval ID for cleanup
-  let countdownInterval: number | null = null
+  const now = ref(Date.now())
+  let ticker: ReturnType<typeof setInterval> | null = null
 
-  const hasActiveSession = computed(() => !!sessionId.value)
+  const sessionId = computed(() => session.value?.sessionId ?? null)
+  const taskId = computed(() => session.value?.taskId ?? null)
+  const expiresAt = computed(() => (session.value ? new Date(deadlineOf(session.value)) : null))
+  const isActive = computed(() => session.value !== null)
+  const remainingSeconds = computed(() =>
+    session.value ? Math.max(0, Math.floor((deadlineOf(session.value) - now.value) / 1000)) : 0
+  )
+  const remainingLabel = computed(() => formatDuration(remainingSeconds.value))
 
-  async function createSession(taskId: string) {
-    isCreating.value = true
-    error.value = null
-    console.log('Creating session for task:', taskId)
+  function stopTicker(): void {
+    if (ticker !== null) {
+      clearInterval(ticker)
+      ticker = null
+    }
+  }
+
+  function startTicker(): void {
+    stopTicker()
+    now.value = Date.now()
+    ticker = setInterval(() => {
+      now.value = Date.now()
+      if (session.value && remainingSeconds.value <= 0) {
+        clear()
+        expired.value = true
+      }
+    }, 1000)
+  }
+
+  function set(next: SessionResponse | null): void {
+    session.value = next
+    expired.value = false
+    if (next) startTicker()
+    else stopTicker()
+  }
+
+  /** Restore the active session after a page load. Returns null when there is none. */
+  async function restore(): Promise<SessionResponse | null> {
+    isRestoring.value = true
     try {
-      const response: SessionResponse = await api.createSession(taskId)
-      console.log('Session created:', response)
-      sessionId.value = response.sessionId
-      expiresAt.value = new Date(response.expiresAt)
-      timeRemaining.value = response.ttlSeconds
-      checkResult.value = null
-
-      // Persist to localStorage
-      localStorage.setItem('session_id', response.sessionId)
-      localStorage.setItem('time_remaining', response.ttlSeconds.toString())
-
-      // Start countdown
-      startCountdown()
-
-      return response
-    } catch (err: any) {
-      console.error('Session creation error:', err)
-      error.value = err.response?.data?.error || err.message || 'Failed to create session'
-      throw err
+      const active = await api.getActiveSession()
+      if (active?.sessionId !== session.value?.sessionId) lastCheck.value = null
+      set(active)
+      return active
     } finally {
-      isCreating.value = false
+      isRestoring.value = false
     }
   }
 
-  async function deleteSession() {
-    if (!sessionId.value) return
-
+  /** Start a container for `taskId` (stops any previous session server-side). */
+  async function start(taskIdToStart: string): Promise<SessionResponse> {
+    isStarting.value = true
     try {
-      await api.deleteSession(sessionId.value)
-      clearSession()
-    } catch (err: any) {
-      console.error('Failed to delete session:', err)
+      const created = await api.createSession(taskIdToStart)
+      lastCheck.value = null
+      set(created)
+      return created
+    } finally {
+      isStarting.value = false
     }
   }
 
-  async function checkSolution(taskId?: string) {
-    if (!sessionId.value) return
+  /** Replace the current container with a fresh one (new sessionId). */
+  async function recreate(): Promise<SessionResponse | null> {
+    if (!session.value) return null
+    isRecreating.value = true
+    try {
+      const next = await api.recreateSession(session.value.sessionId)
+      lastCheck.value = null
+      set(next)
+      return next
+    } finally {
+      isRecreating.value = false
+    }
+  }
 
+  /** Stop the current session and remove its container. */
+  async function stop(): Promise<void> {
+    if (!session.value) return
+    isStopping.value = true
+    try {
+      await api.deleteSession(session.value.sessionId)
+      clear()
+    } finally {
+      isStopping.value = false
+    }
+  }
+
+  /** Run the task checks in the current container. */
+  async function check(): Promise<CheckResponse | null> {
+    if (!session.value) return null
     isChecking.value = true
-    error.value = null
     try {
-      checkResult.value = await api.checkSolution(sessionId.value, taskId)
-      return checkResult.value
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to check solution'
-      throw err
+      lastCheck.value = await api.checkSolution(session.value.sessionId)
+      return lastCheck.value
     } finally {
       isChecking.value = false
     }
   }
 
-  function stopCountdown() {
-    if (countdownInterval !== null) {
-      clearInterval(countdownInterval)
-      countdownInterval = null
-    }
+  function clear(): void {
+    stopTicker()
+    session.value = null
+    lastCheck.value = null
+    expired.value = false
   }
-
-  function clearSession() {
-    stopCountdown()
-    sessionId.value = null
-    expiresAt.value = null
-    timeRemaining.value = 0
-    checkResult.value = null
-    error.value = null
-
-    // Clear localStorage
-    localStorage.removeItem('session_id')
-    localStorage.removeItem('time_remaining')
-  }
-
-  function startCountdown() {
-    // Stop existing interval first (prevent memory leak)
-    stopCountdown()
-
-    countdownInterval = window.setInterval(() => {
-      if (timeRemaining.value > 0) {
-        timeRemaining.value--
-        localStorage.setItem('time_remaining', timeRemaining.value.toString())
-      } else {
-        stopCountdown()
-        clearSession()
-      }
-    }, 1000)
-  }
-
-  // Cleanup when store is disposed (fixes memory leak)
-  onScopeDispose(() => {
-    stopCountdown()
-  })
 
   return {
-    sessionId,
-    expiresAt,
-    timeRemaining,
-    isCreating,
+    session,
+    lastCheck,
+    expired,
+    isRestoring,
+    isStarting,
+    isRecreating,
+    isStopping,
     isChecking,
-    checkResult,
-    error,
-    hasActiveSession,
-    createSession,
-    deleteSession,
-    checkSolution,
-    clearSession,
-    stopCountdown
+    sessionId,
+    taskId,
+    expiresAt,
+    isActive,
+    remainingSeconds,
+    remainingLabel,
+    restore,
+    start,
+    recreate,
+    stop,
+    check,
+    clear
   }
 })

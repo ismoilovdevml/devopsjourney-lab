@@ -17,13 +17,16 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module'
   },
+  // Legacy views are kept only as a reference for page authors; they are not built.
+  ignorePatterns: ['dist/', 'src/views/_legacy/**'],
   rules: {
     'vue/multi-word-component-names': 'off',
+    '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/no-unused-vars': ['error', {
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_'
     }],
-    'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
-    'no-debugger': process.env.NODE_ENV === 'production' ? 'warn' : 'off'
+    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    'no-debugger': 'error'
   }
 }

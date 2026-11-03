@@ -1,263 +1,235 @@
+<!--
+  Terminal — xterm.js bound to the lab container over WebSocket.
+  Connects to same-origin `/ws?sessionId=<id>`; the httpOnly auth cookie authenticates (no token in URL).
+  Frames (docs/API.md): client->server raw text = stdin, {"type":"resize","cols","rows"} = resize;
+  server->client text/binary = terminal output.
+  Theme and font size come from the preferences store and update live.
+  Props:
+    sessionId: string        (reconnects when it changes, e.g. after "recreate")
+    showStatus?: boolean     (connection pill in the top-right corner; default true)
+  Emits: status('connecting' | 'open' | 'reconnecting' | 'closed' | 'failed')
+  Exposes: focus(), fit(), clear()
+-->
 <template>
-  <div class="h-full w-full bg-[#1e1e1e] relative">
-    <div class="h-full w-full" ref="terminalRef"></div>
+  <div class="relative h-full w-full" :style="{ background: prefs.xtermTheme.background }">
+    <div ref="host" class="xterm-host" :style="{ background: prefs.xtermTheme.background }" @click="focus" />
 
-    <!-- Connection Status Indicator -->
-    <div class="absolute top-4 right-4 z-10">
-      <div v-if="!isConnected" class="bg-yellow-900/90 text-yellow-200 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 shadow-lg backdrop-blur-sm">
-        <div class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-        <span v-if="reconnectAttempts > 0">
-          Reconnecting... ({{ reconnectAttempts }}/{{ maxReconnectAttempts }})
-        </span>
-        <span v-else>Connecting...</span>
-      </div>
-      <div v-else class="bg-green-900/90 text-green-200 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 shadow-lg backdrop-blur-sm">
-        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-        Connected
-      </div>
+    <div v-if="showStatus" class="pointer-events-none absolute right-3 top-3 z-10" aria-live="polite">
+      <span
+        v-if="status !== 'open'"
+        :class="[
+          'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-xs backdrop-blur-sm',
+          status === 'failed' || status === 'closed'
+            ? 'border-danger/40 bg-danger/10 text-danger'
+            : 'border-warn/35 bg-warn/10 text-warn'
+        ]"
+      >
+        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+        {{ statusLabel }}
+      </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
+import { usePreferencesStore } from '@/stores/preferences'
+import type { TerminalResizeFrame } from '@/types'
 
-const props = defineProps<{
-  sessionId: string
-}>()
+type TerminalStatus = 'connecting' | 'open' | 'reconnecting' | 'closed' | 'failed'
 
-const terminalRef = ref<HTMLDivElement>()
-const isConnected = ref(false)
-const reconnectAttempts = ref(0)
-const maxReconnectAttempts = 5
+const props = withDefaults(defineProps<{ sessionId: string; showStatus?: boolean }>(), { showStatus: true })
+const emit = defineEmits<{ status: [status: TerminalStatus] }>()
 
-let terminal: Terminal | null = null
+const MAX_RECONNECTS = 5
+/** Close codes after which reconnecting is pointless (policy / auth / session gone). */
+const FATAL_CLOSE_CODES = new Set([1008, 4001, 4003, 4004, 4401, 4403, 4404])
+
+const prefs = usePreferencesStore()
+const host = ref<HTMLDivElement | null>(null)
+const status = ref<TerminalStatus>('connecting')
+const attempts = ref(0)
+
+let term: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let ws: WebSocket | null = null
-let reconnectTimeout: number | null = null
-let pasteListener: ((e: ClipboardEvent) => void) | null = null
+let resizeObserver: ResizeObserver | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let lastSize = { cols: 0, rows: 0 }
+let disposed = false
 
-function initTerminal() {
-  if (!terminalRef.value) return
-
-  terminal = new Terminal({
-    cursorBlink: true,
-    fontSize: 14,
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-    theme: {
-      background: '#1e1e1e',
-      foreground: '#d4d4d4',
-      cursor: '#ffffff',
-      black: '#000000',
-      red: '#cd3131',
-      green: '#0dbc79',
-      yellow: '#e5e510',
-      blue: '#2472c8',
-      magenta: '#bc3fbc',
-      cyan: '#11a8cd',
-      white: '#e5e5e5',
-      brightBlack: '#666666',
-      brightRed: '#f14c4c',
-      brightGreen: '#23d18b',
-      brightYellow: '#f5f543',
-      brightBlue: '#3b8eea',
-      brightMagenta: '#d670d6',
-      brightCyan: '#29b8db',
-      brightWhite: '#ffffff',
-    },
-    convertEol: true,
-    scrollback: 1000,
-    allowProposedApi: true,
-    rightClickSelectsWord: true,
-    windowsMode: false,
-  })
-
-  fitAddon = new FitAddon()
-  terminal.loadAddon(fitAddon)
-  terminal.open(terminalRef.value)
-
-  setTimeout(() => {
-    if (fitAddon) fitAddon.fit()
-    if (terminal) terminal.focus()
-  }, 100)
-
-  connectWebSocket()
-
-  // Handle window resize
-  window.addEventListener('resize', handleResize)
-
-  // Handle paste from clipboard
-  pasteListener = handlePaste
-  if (terminalRef.value) {
-    terminalRef.value.addEventListener('paste', pasteListener)
+const statusLabel = computed(() => {
+  switch (status.value) {
+    case 'connecting':
+      return 'Ulanmoqda…'
+    case 'reconnecting':
+      return `Qayta ulanish ${attempts.value}/${MAX_RECONNECTS}…`
+    case 'closed':
+      return 'Ulanish yopildi'
+    case 'failed':
+      return "Ulanib bo'lmadi"
+    default:
+      return 'Ulangan'
   }
+})
+
+function setStatus(next: TerminalStatus) {
+  status.value = next
+  emit('status', next)
 }
 
-function handlePaste(e: ClipboardEvent) {
-  e.preventDefault()
-  const text = e.clipboardData?.getData('text')
-  if (text && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(text)
-  }
-}
-
-function connectWebSocket() {
+function wsUrl(sessionId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  const port = import.meta.env.VITE_WS_PORT || '8080'
-  const token = localStorage.getItem('auth_token')
-
-  if (!token) {
-    console.error('No auth token found')
-    if (terminal) {
-      terminal.write('\r\n\x1b[31m✗ Authentication required. Please login.\x1b[0m\r\n')
-    }
-    return
-  }
-
-  const wsUrl = `${proto}://${window.location.hostname}:${port}/ws?sessionId=${props.sessionId}&token=${token}`
-
-  console.log('Connecting to WebSocket:', wsUrl.replace(token, 'TOKEN'))
-
-  ws = new WebSocket(wsUrl)
-  ws.binaryType = 'arraybuffer'
-
-  ws.onopen = () => {
-    console.log('WebSocket connected')
-    isConnected.value = true
-    reconnectAttempts.value = 0
-
-    if (terminal) {
-      terminal.write('\r\n\x1b[32m✓ Connected to terminal\x1b[0m\r\n\r\n')
-      terminal.focus()
-    }
-  }
-
-  ws.onmessage = (event) => {
-    if (!terminal) return
-
-    if (typeof event.data === 'string') {
-      terminal.write(event.data)
-    } else if (event.data instanceof ArrayBuffer) {
-      terminal.write(new Uint8Array(event.data))
-    }
-  }
-
-  ws.onerror = (error) => {
-    console.error('WebSocket connection error:', error)
-    isConnected.value = false
-  }
-
-  ws.onclose = (event) => {
-    console.log('WebSocket closed:', event.code, event.reason)
-    isConnected.value = false
-
-    if (terminal) {
-      terminal.write('\r\n\x1b[33m⚠ Connection closed\x1b[0m\r\n')
-    }
-
-    // Attempt reconnection
-    if (reconnectAttempts.value < maxReconnectAttempts) {
-      reconnectAttempts.value++
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.value), 10000)
-
-      if (terminal) {
-        terminal.write(`\x1b[33mReconnecting in ${delay/1000}s... (${reconnectAttempts.value}/${maxReconnectAttempts})\x1b[0m\r\n`)
-      }
-
-      reconnectTimeout = window.setTimeout(() => {
-        console.log(`Reconnect attempt ${reconnectAttempts.value}/${maxReconnectAttempts}`)
-        connectWebSocket()
-      }, delay)
-    } else {
-      if (terminal) {
-        terminal.write('\r\n\x1b[31m✗ Connection failed after maximum retry attempts.\x1b[0m\r\n')
-        terminal.write('\x1b[31mPlease refresh the page or restart your session.\x1b[0m\r\n')
-      }
-    }
-  }
-
-  if (terminal) {
-    terminal.onData((data) => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
-      }
-    })
-  }
-
-  if (terminalRef.value) {
-    terminalRef.value.addEventListener('click', () => {
-      if (terminal) terminal.focus()
-    })
-  }
+  return `${proto}://${window.location.host}/ws?sessionId=${encodeURIComponent(sessionId)}`
 }
 
-function handleResize() {
-  if (fitAddon) fitAddon.fit()
+function sendResize() {
+  if (!term || !ws || ws.readyState !== WebSocket.OPEN) return
+  const { cols, rows } = term
+  if (cols === lastSize.cols && rows === lastSize.rows) return
+  lastSize = { cols, rows }
+  const frame: TerminalResizeFrame = { type: 'resize', cols, rows }
+  ws.send(JSON.stringify(frame))
 }
 
-function cleanup() {
-  console.log('Cleaning up terminal')
-
-  // Clear reconnect timeout
-  if (reconnectTimeout !== null) {
-    clearTimeout(reconnectTimeout)
-    reconnectTimeout = null
+function fit() {
+  if (!fitAddon || !host.value || host.value.clientWidth === 0) return
+  try {
+    fitAddon.fit()
+  } catch {
+    // Element not measurable yet (hidden tab); next resize will fit.
   }
+  sendResize()
+}
 
-  // Remove event listeners
-  window.removeEventListener('resize', handleResize)
+function focus() {
+  term?.focus()
+}
 
-  if (terminalRef.value && pasteListener) {
-    terminalRef.value.removeEventListener('paste', pasteListener)
+function clear() {
+  term?.clear()
+}
+
+function closeSocket() {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
   }
-
-  // Close WebSocket
   if (ws) {
+    ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null
     ws.close()
     ws = null
   }
-
-  // Dispose terminal
-  if (terminal) {
-    terminal.dispose()
-    terminal = null
-  }
-
-  // Reset state
-  isConnected.value = false
-  reconnectAttempts.value = 0
 }
 
-watch(() => props.sessionId, (newId, oldId) => {
-  if (newId !== oldId) {
-    cleanup()
-    setTimeout(() => {
-      initTerminal()
-    }, 100)
+function connect() {
+  closeSocket()
+  if (disposed || !props.sessionId) return
+  setStatus(attempts.value > 0 ? 'reconnecting' : 'connecting')
+  lastSize = { cols: 0, rows: 0 }
+
+  const socket = new WebSocket(wsUrl(props.sessionId))
+  socket.binaryType = 'arraybuffer'
+  ws = socket
+
+  socket.onopen = () => {
+    attempts.value = 0
+    setStatus('open')
+    fit()
+    focus()
   }
-})
+
+  socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
+    if (!term) return
+    if (typeof event.data === 'string') term.write(event.data)
+    else term.write(new Uint8Array(event.data))
+  }
+
+  socket.onclose = (event: CloseEvent) => {
+    if (disposed || ws !== socket) return
+    ws = null
+    if (FATAL_CLOSE_CODES.has(event.code) || attempts.value >= MAX_RECONNECTS) {
+      setStatus(attempts.value >= MAX_RECONNECTS ? 'failed' : 'closed')
+      term?.write('\r\n\x1b[31mUlanish yopildi. Sahifani yangilang yoki sessiyani qayta yarating.\x1b[0m\r\n')
+      return
+    }
+    attempts.value += 1
+    setStatus('reconnecting')
+    const delay = Math.min(1000 * 2 ** (attempts.value - 1), 10000)
+    reconnectTimer = setTimeout(connect, delay)
+  }
+}
+
+function createTerminal() {
+  if (!host.value) return
+  term = new Terminal({
+    cursorBlink: true,
+    fontSize: prefs.fontSize,
+    fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+    lineHeight: 1.2,
+    theme: prefs.xtermTheme,
+    scrollback: 2000,
+    convertEol: true,
+    allowProposedApi: false,
+    rightClickSelectsWord: true
+  })
+  fitAddon = new FitAddon()
+  term.loadAddon(fitAddon)
+  term.open(host.value)
+
+  // Registered once per terminal (not per socket) so reconnects never duplicate input.
+  term.onData((data) => {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(data)
+  })
+
+  resizeObserver = new ResizeObserver(() => fit())
+  resizeObserver.observe(host.value)
+
+  // Refit once the web font is ready so cell metrics are correct.
+  document.fonts?.ready.then(() => fit()).catch(() => undefined)
+  fit()
+}
+
+function destroy() {
+  disposed = true
+  closeSocket()
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  term?.dispose()
+  term = null
+  fitAddon = null
+}
+
+watch(
+  () => props.sessionId,
+  (next, prev) => {
+    if (next === prev || disposed) return
+    attempts.value = 0
+    term?.reset()
+    connect()
+  }
+)
+
+watch(
+  () => [prefs.xtermTheme, prefs.fontSize] as const,
+  ([theme, size]) => {
+    if (!term) return
+    term.options.theme = theme
+    term.options.fontSize = size
+    fit()
+  }
+)
 
 onMounted(() => {
-  initTerminal()
+  disposed = false
+  createTerminal()
+  connect()
 })
 
-onUnmounted(() => {
-  cleanup()
-})
+onBeforeUnmount(destroy)
+
+defineExpose({ focus, fit, clear })
 </script>
-
-<style scoped>
-/* Enable text selection in terminal */
-:deep(.xterm) {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-}
-
-:deep(.xterm-selection) {
-  background-color: rgba(255, 255, 255, 0.3) !important;
-}
-</style>
