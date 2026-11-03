@@ -29,8 +29,21 @@ type ExecResult struct {
 	Error    error // transport/API error (not a non-zero exit code)
 }
 
-// ExecCommand runs `bash -lc command` inside a container as root and returns
-// its exit code and combined output.
+// checkPath is the PATH for checks and setup commands. System directories come
+// first so a student cannot shadow e.g. grep with /usr/local/bin/grep; the
+// /usr/local directories are still needed for tools such as hadolint and
+// docker-compose that the lab image installs there.
+const checkPath = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+
+// ExecCommand runs command with a clean, non-interactive bash inside a
+// container as root and returns its exit code and combined output.
+//
+// The shell never reads student-controlled startup files: `env -i` drops the
+// container environment (including BASH_ENV and ENV) and `--noprofile
+// --norc` skips /etc/profile, ~/.bash_profile, ~/.bashrc and friends. A
+// student who writes `exit 0` into ~/.bash_profile therefore cannot make every
+// check pass. (Root inside the container can still replace system binaries,
+// so check results are best-effort anti-cheat; see SECURITY.md.)
 //
 // The command is wrapped in coreutils `timeout`, so a hanging check is killed
 // inside the container (not only abandoned by the API call), and the API call
@@ -90,10 +103,17 @@ func ExecCommand(ctx context.Context, containerID, command string, timeout time.
 	return result
 }
 
-// wrapWithTimeout builds the exec argv: kill the command after secs seconds
-// (SIGTERM, then SIGKILL 2s later).
+// wrapWithTimeout builds the exec argv: run command in a clean environment
+// with a bash that reads no startup files, and kill it after secs seconds
+// (SIGTERM, then SIGKILL 2s later). Absolute paths so a PATH lookup cannot be
+// redirected.
 func wrapWithTimeout(command string, secs int) []string {
-	return []string{"timeout", "-k", "2", strconv.Itoa(secs), "bash", "-lc", command}
+	return []string{
+		"/usr/bin/timeout", "-k", "2", strconv.Itoa(secs),
+		"/usr/bin/env", "-i",
+		"PATH=" + checkPath, "HOME=/root", "LANG=C.UTF-8", "TERM=dumb",
+		"/bin/bash", "--noprofile", "--norc", "-c", command,
+	}
 }
 
 // RunSetupCommands runs a task's setup commands in order. Any non-zero exit

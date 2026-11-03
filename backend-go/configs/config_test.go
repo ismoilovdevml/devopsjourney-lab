@@ -3,6 +3,7 @@ package configs
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 const strongSecret = "9f2c7a41d0b84e6f8c3a5b7e1d2f4a6c8e0b1d3f5a7c9e2b"
@@ -23,6 +24,13 @@ func setEnv(t *testing.T, overrides map[string]string) {
 		"DOCKER_SOCKET":           "",
 		"JWT_EXPIRATION":          "",
 		"AUTH_RATE_LIMIT_PER_MIN": "",
+
+		"LAB_RUNTIME":                "",
+		"LAB_ALLOW_NET_ADMIN":        "",
+		"LAB_STORAGE_SIZE":           "",
+		"LAB_DISK_MAX_BYTES":         "",
+		"LAB_IDLE_TIMEOUT":           "",
+		"SESSION_RATE_LIMIT_PER_MIN": "",
 	}
 	for k, v := range overrides {
 		base[k] = v
@@ -145,5 +153,59 @@ func TestAuthRateLimitPerMin(t *testing.T) {
 		if got := Load().Security.AuthRateLimitPerMin; got != want {
 			t.Errorf("AUTH_RATE_LIMIT_PER_MIN=%q: got %d, want %d", raw, got, want)
 		}
+	}
+}
+
+func TestLabSandboxDefaults(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want bool
+	}{
+		{"production runc: NET_ADMIN off", nil, false},
+		{"production gVisor: NET_ADMIN on", map[string]string{"LAB_RUNTIME": "runsc"}, true},
+		{"production explicit opt-in", map[string]string{"LAB_ALLOW_NET_ADMIN": "true"}, true},
+		{"development default on", map[string]string{"ENVIRONMENT": "development"}, true},
+		{"development explicit off", map[string]string{"ENVIRONMENT": "development", "LAB_ALLOW_NET_ADMIN": "false"}, false},
+		{"gVisor explicit off", map[string]string{"LAB_RUNTIME": "runsc", "LAB_ALLOW_NET_ADMIN": "false"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			setEnv(t, c.env)
+			cfg := Load()
+			if cfg.Docker.AllowNetAdmin != c.want {
+				t.Fatalf("AllowNetAdmin = %v, want %v", cfg.Docker.AllowNetAdmin, c.want)
+			}
+		})
+	}
+
+	setEnv(t, map[string]string{"LAB_RUNTIME": " runsc ", "LAB_STORAGE_SIZE": "2G"})
+	cfg := Load()
+	if cfg.Docker.Runtime != "runsc" || cfg.Docker.StorageSize != "2G" {
+		t.Fatalf("runtime=%q storage=%q", cfg.Docker.Runtime, cfg.Docker.StorageSize)
+	}
+}
+
+func TestLabGuardDefaults(t *testing.T) {
+	setEnv(t, nil)
+	cfg := Load()
+	if cfg.Docker.DiskMaxBytes != 2<<30 || cfg.Docker.IdleTimeout != 15*time.Minute ||
+		cfg.Security.SessionRateLimitPerMin != 6 {
+		t.Fatalf("defaults: disk=%d idle=%s rate=%d", cfg.Docker.DiskMaxBytes, cfg.Docker.IdleTimeout,
+			cfg.Security.SessionRateLimitPerMin)
+	}
+
+	setEnv(t, map[string]string{"LAB_DISK_MAX_BYTES": "-1", "LAB_IDLE_TIMEOUT": "5s", "SESSION_RATE_LIMIT_PER_MIN": "0"})
+	cfg = Load()
+	if cfg.Docker.DiskMaxBytes != 2<<30 || cfg.Docker.IdleTimeout != time.Minute || cfg.Security.SessionRateLimitPerMin != 1 {
+		t.Fatalf("clamped: disk=%d idle=%s rate=%d", cfg.Docker.DiskMaxBytes, cfg.Docker.IdleTimeout,
+			cfg.Security.SessionRateLimitPerMin)
+	}
+
+	setEnv(t, map[string]string{"LAB_DISK_MAX_BYTES": "1048576", "LAB_IDLE_TIMEOUT": "garbage", "SESSION_RATE_LIMIT_PER_MIN": "600"})
+	cfg = Load()
+	if cfg.Docker.DiskMaxBytes != 1<<20 || cfg.Docker.IdleTimeout != 15*time.Minute || cfg.Security.SessionRateLimitPerMin != 600 {
+		t.Fatalf("custom: disk=%d idle=%s rate=%d", cfg.Docker.DiskMaxBytes, cfg.Docker.IdleTimeout,
+			cfg.Security.SessionRateLimitPerMin)
 	}
 }

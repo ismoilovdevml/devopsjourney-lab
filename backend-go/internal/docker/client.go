@@ -193,6 +193,12 @@ func BuildHostConfig(cfg *ContainerConfig) (*container.HostConfig, error) {
 	if cfg.MemoryLimit <= 0 {
 		hc.MemorySwap = 0
 	}
+	if cfg.Runtime != "" {
+		hc.Runtime = cfg.Runtime
+	}
+	if cfg.StorageSize != "" {
+		hc.StorageOpt = map[string]string{"size": cfg.StorageSize}
+	}
 	return hc, nil
 }
 
@@ -208,6 +214,14 @@ func CreateContainer(ctx context.Context, cfg *ContainerConfig) (string, error) 
 		HostConfig: hostConfig,
 	})
 	if err != nil {
+		if cfg.StorageSize != "" && IsStorageOptUnsupported(err) {
+			log.Error().Err(err).Str("lab_storage_size", cfg.StorageSize).
+				Msg("LAB_STORAGE_SIZE is not supported by this Docker storage setup (needs overlay2 on xfs mounted with pquota); unset LAB_STORAGE_SIZE and rely on LAB_DISK_MAX_BYTES")
+		}
+		if cfg.Runtime != "" && strings.Contains(strings.ToLower(err.Error()), "runtime") {
+			log.Error().Err(err).Str("lab_runtime", cfg.Runtime).
+				Msg("LAB_RUNTIME is not registered with the Docker daemon (see SECURITY.md for gVisor setup)")
+		}
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
 
@@ -277,6 +291,43 @@ func ListLabContainers(ctx context.Context) ([]LabContainer, error) {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Created.Before(out[j].Created) })
+	return out, nil
+}
+
+// IsStorageOptUnsupported reports whether a container-create error means the
+// daemon cannot honour --storage-opt size (wrong driver/backing filesystem).
+func IsStorageOptUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "storage-opt") || strings.Contains(msg, "storage opt") ||
+		strings.Contains(msg, "pquota") || strings.Contains(msg, "storage option")
+}
+
+// ListLabContainerSizes is ListLabContainers with SizeRw filled in. The daemon
+// walks every writable layer to answer, so call it at most every minute or so.
+func ListLabContainerSizes(ctx context.Context) ([]LabContainer, error) {
+	list, err := Client.ContainerList(ctx, client.ContainerListOptions{
+		All:     false, // only running containers can still grow
+		Size:    true,
+		Filters: make(client.Filters).Add("label", LabelSession),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list lab container sizes: %w", err)
+	}
+	out := make([]LabContainer, 0, len(list.Items))
+	for _, c := range list.Items {
+		out = append(out, LabContainer{
+			ID:        c.ID,
+			SessionID: c.Labels[LabelSession],
+			UserID:    c.Labels[LabelUser],
+			TaskID:    c.Labels[LabelTask],
+			State:     string(c.State),
+			Created:   time.Unix(c.Created, 0),
+			SizeRw:    c.SizeRw,
+		})
+	}
 	return out, nil
 }
 

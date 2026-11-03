@@ -19,10 +19,14 @@ them with `403` when an `Origin` header is present and not in `CORS_ORIGINS`.
 | POST | `/api/auth/logout` | user | — | `204` + clears cookie |
 | GET | `/api/me` | user | — | `200 User` |
 | PUT | `/api/me` | user | `{email?, github?, goal?}` | `200 User` |
-| POST | `/api/me/password` | user | `{current_password, new_password}` | `204` (`400` weak, `401` wrong current) |
+| POST | `/api/me/password` | user | `{current_password, new_password}` | `204` + re-issues cookie (`400` weak, `401` wrong current) |
 
 Rules: username `^[a-z0-9_-]{3,32}$`; password 8–72 chars; login/register rate-limited per IP
 (10/min); login failure messages never reveal whether the username exists.
+
+Changing the password signs out every other device: tokens issued before the change are rejected
+(`401`), open terminal WebSockets of those devices are closed with code `4401` within a minute, and the
+calling client receives a fresh `dj_token` cookie in the `204` response so it stays signed in.
 
 ```ts
 User = { id, username, email, role: 'student'|'admin', active, github, goal, created_at }
@@ -37,7 +41,8 @@ User = { id, username, email, role: 'student'|'admin', active, github, goal, cre
 
 ```ts
 TaskSummary = { id, title, description, category, difficulty: 1|2|3, points, order,
-                checks_count, unlocked, completed, in_progress }
+                checks_count, unlocked, completed, in_progress,
+                available: boolean, unavailable_reason?: string }
 TaskDetail  = TaskSummary & { image, readme /* markdown */, hints: string[], checks: {name}[] }
 ```
 
@@ -45,14 +50,20 @@ TaskDetail  = TaskSummary & { image, readme /* markdown */, hints: string[], che
 `category` comes from `task.yaml` (`web`, `containers`, `services`, `users`, `network`, `automation`).
 `points` comes from `task.yaml` (default `difficulty * 100`).
 
+`available` is `false` when this server cannot run the task, e.g. it needs `CAP_NET_ADMIN` and the
+operator disabled it (`LAB_ALLOW_NET_ADMIN=false`, the production default without `LAB_RUNTIME`).
+`unavailable_reason` (user-facing text) is present only then. An unavailable task is never
+`unlocked` (not even for admins) and is skipped by the unlock chain: an available task unlocks when
+the previous **available** task is completed.
+
 ## Sessions (lab containers)
 
 | Method | Path | Auth | Body | Response |
 |---|---|---|---|---|
-| POST | `/api/sessions` | user | `{taskId}` | `201 SessionResponse` (409 if task locked) |
+| POST | `/api/sessions` | user | `{taskId}` | `201 SessionResponse` (`409` task locked or unavailable, `429` rate limit, `503` capacity) |
 | GET | `/api/sessions/active` | user | — | `200 SessionResponse` or `204` |
 | GET | `/api/sessions/:id` | owner | — | `200 SessionResponse` |
-| POST | `/api/sessions/:id/recreate` | owner | — | `201 SessionResponse` (old container removed) |
+| POST | `/api/sessions/:id/recreate` | owner | — | `201 SessionResponse` (old container removed; `409` unavailable, `429` rate limit) |
 | DELETE | `/api/sessions/:id` | owner | — | `204` |
 | POST | `/api/check/:sessionId` | owner | — | `200 CheckResponse` |
 | WS | `/ws?sessionId=<id>` | owner (cookie) | — | terminal stream |
@@ -65,6 +76,20 @@ CheckResponse   = { passed, score, total, results: {name, ok, output?}[] }
 One active session per user: creating a new one stops the previous one. The WebSocket upgrade checks
 the `Origin` header against `CORS_ORIGINS` and session ownership. Client→server frames:
 raw text = stdin, `{"type":"resize","cols":n,"rows":n}` = resize.
+
+Lab starts are rate-limited per user: `POST /api/sessions` and `POST /api/sessions/:id/recreate` share
+one budget of `SESSION_RATE_LIMIT_PER_MIN` (default 6) per minute. Over the limit the response is
+`429 {error: "Too many requests", message, code, retry_after}` with a `Retry-After` header (seconds).
+A task that is not available answers `409 {error: "Task unavailable", message: <reason>}`.
+
+The backend ends a session on its own (status `expired`) when its TTL passes, when its container's
+writable layer grows beyond `LAB_DISK_MAX_BYTES` (checked every minute; activity log `WARN
+session_disk_quota`), or when no terminal has been attached for `LAB_IDLE_TIMEOUT` (default 15 min).
+
+WebSocket close codes sent by the server: `1000` normal (terminal exited, idle timeout, session
+expired), `1001` server shutting down, `1011` terminal could not start, `4401` credentials no longer
+valid (password changed, account deactivated or deleted; checked about every 25 s). Clients should
+not auto-reconnect on `4401` and should send the user to the login page.
 
 ## Progress & leaderboard
 

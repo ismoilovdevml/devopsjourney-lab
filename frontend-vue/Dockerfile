@@ -28,14 +28,15 @@ LABEL org.opencontainers.image.title="devopslab-frontend" \
       org.opencontainers.image.licenses="MIT"
 
 # nginx.conf is a template rendered by the stock entrypoint (20-envsubst-on-templates.sh)
-# into /etc/nginx/conf.d/default.conf. Only NGINX_AUTH_* variables are substituted.
+# into /etc/nginx/conf.d/default.conf. Only NGINX_AUTH_* and NGINX_REAL_IP_FROM are substituted.
 # With a read-only root filesystem, /etc/nginx/conf.d must be a writable tmpfs
 # (see docker-compose.yml).
 COPY --chown=root:root nginx.conf /etc/nginx/templates/default.conf.template
 RUN rm -f /etc/nginx/conf.d/default.conf
-ENV NGINX_ENVSUBST_FILTER="^NGINX_AUTH_" \
+ENV NGINX_ENVSUBST_FILTER="^NGINX_(AUTH_|REAL_IP_FROM)" \
     NGINX_AUTH_RATE="10r/m" \
-    NGINX_AUTH_BURST="20"
+    NGINX_AUTH_BURST="20" \
+    NGINX_REAL_IP_FROM="127.0.0.1/32"
 COPY --from=builder --chown=root:root /app/dist /usr/share/nginx/html
 
 # nginx-unprivileged already runs as uid 101; be explicit.

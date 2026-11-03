@@ -31,11 +31,15 @@ var BaseCapabilities = []string{
 // ExtraCapabilityAllowlist lists the capabilities a task.yaml may request on
 // top of BaseCapabilities. Anything else is rejected: a task file must never be
 // able to grant e.g. SYS_ADMIN. Capabilities are only effective inside the
-// container's own namespaces (NET_ADMIN only touches its private netns).
+// container's own namespaces (NET_ADMIN only touches its private netns), but
+// with runc they still exercise the host kernel's code paths (netfilter), so
+// keep this list minimal. NET_RAW is deliberately absent: no task needs it.
 var ExtraCapabilityAllowlist = map[string]bool{
 	"NET_ADMIN": true, // iptables/ufw inside the container's network namespace
-	"NET_RAW":   true, // raw sockets (ping, legacy iptables)
 }
+
+// CapNetAdmin is the capability gated by LAB_ALLOW_NET_ADMIN.
+const CapNetAdmin = "NET_ADMIN"
 
 // ContainerConfig holds container creation configuration.
 type ContainerConfig struct {
@@ -54,6 +58,12 @@ type ContainerConfig struct {
 	// Network enables the default bridge network. When false the container
 	// only has a private loopback interface (NetworkMode "none").
 	Network bool
+
+	// Runtime is the OCI runtime (e.g. "runsc" for gVisor); empty = daemon default.
+	Runtime string
+	// StorageSize, when set, becomes StorageOpt{"size": ...} (overlay2 on xfs
+	// with pquota only; other setups reject container create).
+	StorageSize string
 }
 
 // LabContainer is a lab container found on the Docker host by its labels.
@@ -64,4 +74,7 @@ type LabContainer struct {
 	TaskID    string
 	State     string // created, running, exited, ...
 	Created   time.Time
+	// SizeRw is the size of the writable layer in bytes. Only filled by
+	// ListLabContainerSizes (computing it is expensive for the daemon).
+	SizeRw int64
 }

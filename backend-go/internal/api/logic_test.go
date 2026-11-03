@@ -315,7 +315,7 @@ func TestUnlockAndSummaries(t *testing.T) {
 	st.inProgress["b"] = true
 	st.inProgress["a"] = true // completed wins
 
-	got := buildSummaries(tasks, st, false)
+	got := buildSummaries(tasks, st, false, nil)
 	wantUnlocked := []bool{true, true, false, false}
 	for i, s := range got {
 		if s.Unlocked != wantUnlocked[i] {
@@ -326,21 +326,76 @@ func TestUnlockAndSummaries(t *testing.T) {
 		t.Fatalf("state flags: %+v", got[:2])
 	}
 
-	for _, s := range buildSummaries(tasks, emptyTaskState(), true) {
+	for _, s := range buildSummaries(tasks, emptyTaskState(), true, nil) {
 		if !s.Unlocked {
 			t.Fatalf("admin must see %s unlocked", s.ID)
 		}
 	}
-	anon := buildSummaries(tasks, emptyTaskState(), false)
+	anon := buildSummaries(tasks, emptyTaskState(), false, nil)
 	if !anon[0].Unlocked || anon[1].Unlocked {
 		t.Fatal("anonymous: only the first task is unlocked")
+	}
+}
+
+func TestUnlockSkipsUnavailableTasks(t *testing.T) {
+	tasks := testTasks() // a, b, c, d
+	avail := availability{"b": "needs NET_ADMIN"}
+
+	// Nothing done: only the first available task is open; b is never unlocked.
+	got := buildSummaries(tasks, emptyTaskState(), false, avail)
+	want := map[string]bool{"a": true, "b": false, "c": false, "d": false}
+	for _, s := range got {
+		if s.Unlocked != want[s.ID] {
+			t.Fatalf("%s unlocked=%v want %v", s.ID, s.Unlocked, want[s.ID])
+		}
+		if s.ID == "b" {
+			if s.Available || s.UnavailableReason != "needs NET_ADMIN" {
+				t.Fatalf("b: available=%v reason=%q", s.Available, s.UnavailableReason)
+			}
+		} else if !s.Available || s.UnavailableReason != "" {
+			t.Fatalf("%s must be available: %+v", s.ID, s)
+		}
+	}
+
+	// Completing a unlocks c (the next AVAILABLE task), skipping b.
+	st := emptyTaskState()
+	st.completed["a"] = true
+	u := unlockedSet(tasks, st.completed, false, avail)
+	if !u["c"] || u["b"] || u["d"] {
+		t.Fatalf("after a: %v", u)
+	}
+	st.completed["c"] = true
+	if u := unlockedSet(tasks, st.completed, false, avail); !u["d"] {
+		t.Fatalf("after c: %v", u)
+	}
+
+	// Admins see every available task unlocked, but never an unavailable one.
+	u = unlockedSet(tasks, emptyTaskState().completed, true, avail)
+	if !u["a"] || u["b"] || !u["c"] || !u["d"] {
+		t.Fatalf("admin: %v", u)
+	}
+
+	// The first task being unavailable makes the second the entry point.
+	u = unlockedSet(tasks, emptyTaskState().completed, false, availability{"a": "x"})
+	if u["a"] || !u["b"] || u["c"] {
+		t.Fatalf("first unavailable: %v", u)
+	}
+
+	// JSON: available is always present, the reason only when unavailable.
+	b, _ := json.Marshal(got[0])
+	if !strings.Contains(string(b), `"available":true`) || strings.Contains(string(b), "unavailable_reason") {
+		t.Fatalf("json = %s", b)
+	}
+	b, _ = json.Marshal(got[1])
+	if !strings.Contains(string(b), `"available":false`) || !strings.Contains(string(b), `"unavailable_reason":"needs NET_ADMIN"`) {
+		t.Fatalf("json = %s", b)
 	}
 }
 
 func TestTaskDetailNeverLeaksCommands(t *testing.T) {
 	tk := testTasks()[1]
 	tk.Setup = []string{"apt-get install secret-setup"}
-	b, err := json.Marshal(buildDetail(tk, true, emptyTaskState()))
+	b, err := json.Marshal(buildDetail(tk, true, emptyTaskState(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

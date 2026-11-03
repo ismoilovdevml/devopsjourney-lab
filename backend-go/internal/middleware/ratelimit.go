@@ -76,6 +76,10 @@ func (m *memoryLimiter) incr(key string, now time.Time) (int, time.Duration) {
 	return b.count, b.reset.Sub(now)
 }
 
+// ResetInMemoryLimiter clears the in-process fallback buckets. Tests only: Redis-backed
+// counters are not touched.
+func ResetInMemoryLimiter() { fallbackLimiter.reset() }
+
 func (m *memoryLimiter) reset() {
 	m.mu.Lock()
 	m.buckets = make(map[string]*memBucket)
@@ -163,7 +167,36 @@ const DefaultAuthRateLimit = 10
 // authRateLimit is the budget AuthRateLimiter uses; see SetAuthRateLimit.
 var authRateLimit atomic.Int64
 
-func init() { authRateLimit.Store(DefaultAuthRateLimit) }
+// DefaultSessionRateLimit is the lab create/recreate budget per user per minute.
+const DefaultSessionRateLimit = 6
+
+// sessionRateLimit is the budget SessionRateLimiter uses; see SetSessionRateLimit.
+var sessionRateLimit atomic.Int64
+
+func init() {
+	authRateLimit.Store(DefaultAuthRateLimit)
+	sessionRateLimit.Store(DefaultSessionRateLimit)
+}
+
+// SetSessionRateLimit sets the lab create/recreate budget per user per minute (clamped to
+// 1..10000). It applies to limiters created afterwards, so call it before SetupRoutes.
+func SetSessionRateLimit(perMinute int) {
+	sessionRateLimit.Store(int64(min(max(perMinute, 1), 10000)))
+}
+
+// SessionRateLimiter limits lab creates/recreates per authenticated user (shared bucket for
+// POST /api/sessions and POST /api/sessions/:id/recreate). Every create starts a container and
+// runs setup commands, so this bounds how fast one account can churn lab slots. Must run after
+// AuthMiddleware; anonymous requests pass through (AuthMiddleware already rejected them).
+func SessionRateLimiter() gin.HandlerFunc {
+	return limitHandler(int(sessionRateLimit.Load()), func(c *gin.Context) (string, bool) {
+		uid := c.GetUint("user_id")
+		if uid == 0 {
+			return "", false
+		}
+		return "ratelimit:sessions:user:" + strconv.FormatUint(uint64(uid), 10), true
+	}, "Too many lab starts. Please wait a minute and try again.")
+}
 
 // SetAuthRateLimit sets the login/register budget per client IP per minute (clamped to
 // 1..10000). It applies to limiters created afterwards, so call it before SetupRoutes.

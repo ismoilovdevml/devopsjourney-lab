@@ -50,6 +50,7 @@ func integrationManager(t *testing.T) (*Manager, string) {
 		CPUNano:          500_000_000,
 		PidsLimit:        256,
 		MaxSessionsTotal: 100,
+		AllowNetAdmin:    true,
 	}), tasksDir
 }
 
@@ -216,5 +217,66 @@ func TestIntegrationHardening(t *testing.T) {
 	}
 	if !found {
 		t.Error("container not found by devopslab.session label")
+	}
+}
+
+// TestIntegrationStartupFilesCannotFakeChecks proves that a student (root in
+// the container) cannot make checks pass by planting shell startup files:
+// checks and setup run with `env -i` and `bash --noprofile --norc`.
+func TestIntegrationStartupFilesCannotFakeChecks(t *testing.T) {
+	m, _ := integrationManager(t)
+	tk, err := task.GetTask("nginx-health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := provisionForTest(t, m, tk)
+	ctx := context.Background()
+
+	before := buildCheckResponse(runChecks(ctx, id, tk.Checks))
+	if before.Passed {
+		t.Fatal("task solved before the student did anything")
+	}
+
+	// Every startup file bash might read, in login, interactive and
+	// non-interactive (BASH_ENV/ENV) mode.
+	cheat := `set -e
+for f in /root/.bash_profile /root/.bash_login /root/.profile /root/.bashrc /etc/profile /etc/bash.bashrc /root/.cheat-env; do
+  echo 'exit 0' >> "$f"
+done
+mkdir -p /etc/profile.d && echo 'exit 0' > /etc/profile.d/00-cheat.sh
+echo 'BASH_ENV=/root/.cheat-env' >> /etc/environment
+echo 'ENV=/root/.cheat-env' >> /etc/environment`
+	if res := docker.ExecCommand(ctx, id, cheat, 10*time.Second); res.Error != nil || res.ExitCode != 0 {
+		t.Fatalf("plant startup files: exit=%d err=%v %s", res.ExitCode, res.Error, res.Output)
+	}
+
+	// Sanity: the cheat is live for a login shell (what checks used to run).
+	if res := docker.ExecCommand(ctx, id, "bash -lc 'exit 7'", 10*time.Second); res.ExitCode != 0 {
+		t.Fatalf("cheat not effective for a login shell (exit %d); test would prove nothing", res.ExitCode)
+	} else {
+		t.Log("login shell is hijacked by ~/.bash_profile as expected (bash -lc 'exit 7' -> 0)")
+	}
+	// The same file via BASH_ENV would hijack a plain non-interactive bash.
+	if res := docker.ExecCommand(ctx, id, "BASH_ENV=/root/.cheat-env bash -c 'exit 7'", 10*time.Second); res.ExitCode != 0 {
+		t.Fatalf("BASH_ENV cheat not effective (exit %d)", res.ExitCode)
+	}
+
+	// Checks themselves are not affected.
+	if res := docker.ExecCommand(ctx, id, "exit 7", 10*time.Second); res.ExitCode != 7 {
+		t.Fatalf("check shell read a startup file: exit %d, want 7", res.ExitCode)
+	}
+	if res := docker.ExecCommand(ctx, id, `test -z "${BASH_ENV:-}${ENV:-}" && test "$PATH" = "`+"/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"+`"`, 10*time.Second); res.ExitCode != 0 {
+		t.Fatalf("check environment is not clean: exit %d %s", res.ExitCode, res.Output)
+	}
+	after := buildCheckResponse(runChecks(ctx, id, tk.Checks))
+	t.Logf("checks before cheat %d/%d, after cheat %d/%d", before.Score, before.Total, after.Score, after.Total)
+	if after.Passed || after.Score != before.Score {
+		t.Fatalf("startup-file cheat changed check results: before %d/%d, after %d/%d",
+			before.Score, before.Total, after.Score, after.Total)
+	}
+
+	// Setup commands use the same clean shell.
+	if err := docker.RunSetupCommands(ctx, id, []string{"exit 3"}, 10*time.Second); err == nil {
+		t.Fatal("setup command exit 3 was masked by a startup file")
 	}
 }

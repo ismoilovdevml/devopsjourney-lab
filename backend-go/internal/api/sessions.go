@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/devops-lab/backend/internal/database"
@@ -32,6 +33,8 @@ func labError(c *gin.Context, err error, logMsg string) {
 		respondError(c, http.StatusNotFound, "Task not found", "")
 	case errors.Is(err, session.ErrCheckInProgress):
 		respondError(c, http.StatusConflict, "Check in progress", session.ErrCheckInProgress.Error())
+	case errors.Is(err, session.ErrTaskUnavailable):
+		respondError(c, http.StatusConflict, "Task unavailable", strings.TrimPrefix(err.Error(), session.ErrTaskUnavailable.Error()+": "))
 	case errors.Is(err, session.ErrContainerNotRunning):
 		respondError(c, http.StatusConflict, "Lab container not running", "recreate the lab environment and try again")
 	default:
@@ -97,7 +100,12 @@ func CreateSession(c *gin.Context) {
 		internalError(c, err, "failed to load task state")
 		return
 	}
-	if !unlockedSet(tasks, st.completed, isAdmin(c))[req.TaskID] {
+	avail := loadAvailability(tasks)
+	if !avail.available(req.TaskID) {
+		respondError(c, http.StatusConflict, "Task unavailable", avail[req.TaskID])
+		return
+	}
+	if !unlockedSet(tasks, st.completed, isAdmin(c), avail)[req.TaskID] {
 		respondError(c, http.StatusConflict, "Task locked", "complete the previous task first")
 		return
 	}

@@ -43,10 +43,12 @@ func SetupRoutes(router *gin.Engine, corsOrigins []string) {
 	user.PUT("/me", UpdateMe)
 	user.POST("/me/password", ChangePassword)
 
-	user.POST("/sessions", CreateSession)
+	// Each create/recreate starts a container: bounded per user (SESSION_RATE_LIMIT_PER_MIN).
+	sessionLimit := middleware.SessionRateLimiter()
+	user.POST("/sessions", sessionLimit, CreateSession)
 	user.GET("/sessions/active", GetActiveSession)
 	user.GET("/sessions/:id", GetSession)
-	user.POST("/sessions/:id/recreate", RecreateSession)
+	user.POST("/sessions/:id/recreate", sessionLimit, RecreateSession)
 	user.DELETE("/sessions/:id", DeleteSession)
 	user.POST("/check/:sessionId", CheckSolution)
 

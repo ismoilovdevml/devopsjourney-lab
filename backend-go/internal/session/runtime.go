@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strings"
 
 	"github.com/devops-lab/backend/internal/docker"
 	"gopkg.in/yaml.v3"
@@ -51,4 +52,15 @@ func parseTaskRuntime(data []byte) (*TaskRuntime, error) {
 		return nil, err
 	}
 	return &rt, nil
+}
+
+// needsCapability reports whether the task requests capability (case and
+// "CAP_" prefix insensitive).
+func (rt *TaskRuntime) needsCapability(capability string) bool {
+	for _, c := range rt.Capabilities {
+		if strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(c)), "CAP_") == capability {
+			return true
+		}
+	}
+	return false
 }

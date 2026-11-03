@@ -30,6 +30,23 @@ const (
 	maxAuthRateLimitPerMin     = 10000
 )
 
+// Bounds and default for SESSION_RATE_LIMIT_PER_MIN (lab creates/recreates per user per minute).
+const (
+	DefaultSessionRateLimitPerMin = 6
+	maxSessionRateLimitPerMin     = 10000
+)
+
+// Lab resource guard defaults.
+const (
+	// DefaultDiskMaxBytes is LAB_DISK_MAX_BYTES: a session whose container
+	// writable layer grows beyond it is stopped by the sweeper (2 GiB).
+	DefaultDiskMaxBytes int64 = 2 << 30
+	// DefaultIdleTimeout is LAB_IDLE_TIMEOUT: a session with no terminal
+	// attached for this long is reclaimed.
+	DefaultIdleTimeout = 15 * time.Minute
+	minIdleTimeout     = time.Minute
+)
+
 // knownJWTPlaceholders are values shipped in examples/compose files; they must never be used in production.
 var knownJWTPlaceholders = []string{
 	"change-me-in-production",
@@ -76,6 +93,24 @@ type DockerConfig struct {
 	CPUNano          int64
 	PidsLimit        int64
 	MaxSessionsTotal int
+
+	// Runtime is the OCI runtime for lab containers (LAB_RUNTIME, e.g. "runsc"
+	// for gVisor). Empty means the daemon default (runc).
+	Runtime string
+	// AllowNetAdmin lets tasks that request CAP_NET_ADMIN run
+	// (LAB_ALLOW_NET_ADMIN). Default: true in development; in production
+	// false unless Runtime is set. Such tasks are reported unavailable otherwise.
+	AllowNetAdmin bool
+	// StorageSize caps the container writable layer via --storage-opt size
+	// (LAB_STORAGE_SIZE, e.g. "2G"). Only works on overlay2 over xfs with
+	// pquota; empty disables it.
+	StorageSize string
+	// DiskMaxBytes is the writable-layer size above which the sweeper stops a
+	// session (LAB_DISK_MAX_BYTES, default 2 GiB). Works on every storage driver.
+	DiskMaxBytes int64
+	// IdleTimeout reclaims sessions with no terminal attached for this long
+	// (LAB_IDLE_TIMEOUT, default 15m, minimum 1m).
+	IdleTimeout time.Duration
 }
 
 // DatabaseConfig holds PostgreSQL connection settings.
@@ -124,6 +159,9 @@ type SecurityConfig struct {
 	// AuthRateLimitPerMin caps login/register requests per client IP per minute
 	// (AUTH_RATE_LIMIT_PER_MIN, default 10, clamped to 1..10000). Raise only for automated tests.
 	AuthRateLimitPerMin int
+	// SessionRateLimitPerMin caps lab creates/recreates per user per minute
+	// (SESSION_RATE_LIMIT_PER_MIN, default 6, clamped to 1..10000).
+	SessionRateLimitPerMin int
 }
 
 // IsProduction reports whether ENVIRONMENT=production.
@@ -164,6 +202,23 @@ func Load() *Config {
 		dockerHost = "unix://" + socket
 	}
 
+	labRuntime := strings.TrimSpace(os.Getenv("LAB_RUNTIME"))
+	// NET_ADMIN on runc means the student's root talks to the host kernel's
+	// netfilter code: allow it by default only in development or when a
+	// sandboxed runtime is configured.
+	allowNetAdmin := getEnvBool("LAB_ALLOW_NET_ADMIN", !strings.EqualFold(env, "production") || labRuntime != "")
+
+	idle, err := time.ParseDuration(getEnv("LAB_IDLE_TIMEOUT", DefaultIdleTimeout.String()))
+	if err != nil || idle <= 0 {
+		idle = DefaultIdleTimeout
+	}
+	idle = max(idle, minIdleTimeout)
+
+	diskMax := getEnvInt64("LAB_DISK_MAX_BYTES", DefaultDiskMaxBytes)
+	if diskMax <= 0 {
+		diskMax = DefaultDiskMaxBytes
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port:        getEnv("PORT", "8080"),
@@ -180,6 +235,11 @@ func Load() *Config {
 			CPUNano:          getEnvInt64("CPU_NANO", 500000000),
 			PidsLimit:        getEnvInt64("PIDS_LIMIT", 256),
 			MaxSessionsTotal: getEnvInt("MAX_SESSIONS_TOTAL", 20),
+			Runtime:          labRuntime,
+			AllowNetAdmin:    allowNetAdmin,
+			StorageSize:      strings.TrimSpace(os.Getenv("LAB_STORAGE_SIZE")),
+			DiskMaxBytes:     diskMax,
+			IdleTimeout:      idle,
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -212,6 +272,8 @@ func Load() *Config {
 			TrustedProxies: splitList(getEnv("TRUSTED_PROXIES", defaultTrustedProxies)),
 			AuthRateLimitPerMin: clampInt(getEnvInt("AUTH_RATE_LIMIT_PER_MIN", DefaultAuthRateLimitPerMin),
 				minAuthRateLimitPerMin, maxAuthRateLimitPerMin),
+			SessionRateLimitPerMin: clampInt(getEnvInt("SESSION_RATE_LIMIT_PER_MIN", DefaultSessionRateLimitPerMin),
+				1, maxSessionRateLimitPerMin),
 		},
 	}
 }
@@ -268,6 +330,12 @@ func (c *Config) Validate() error {
 
 	if c.JWT.Generated {
 		log.Warn().Msg("JWT_SECRET not set: using an ephemeral random secret (non-production only); sessions reset on restart")
+	}
+	if c.Docker.AllowNetAdmin && c.Docker.Runtime == "" && c.IsProduction() {
+		log.Warn().Msg("LAB_ALLOW_NET_ADMIN=true without LAB_RUNTIME: students get CAP_NET_ADMIN against the host kernel (use gVisor, see SECURITY.md)")
+	}
+	if !c.Docker.AllowNetAdmin {
+		log.Info().Msg("LAB_ALLOW_NET_ADMIN=false: tasks that need CAP_NET_ADMIN are reported unavailable")
 	}
 	if !c.Security.CookieSecure {
 		log.Warn().Msg("COOKIE_SECURE=false: auth cookie will be sent over plain HTTP (local development only)")

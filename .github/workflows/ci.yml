@@ -49,11 +49,11 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: backend-go/go.sum
@@ -65,7 +65,7 @@ jobs:
         run: go vet ./...
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.15
           working-directory: backend-go
@@ -91,11 +91,11 @@ jobs:
       run:
         working-directory: frontend-vue
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -119,7 +119,7 @@ jobs:
     needs: [backend, frontend]
     continue-on-error: false
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -134,7 +134,7 @@ jobs:
             echo "::notice::e2e/package.json not found; skipping end-to-end tests."
           fi
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.guard.outputs.present == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -148,6 +148,18 @@ jobs:
           # Mask generated secrets in any later log output.
           grep -E '^(JWT_SECRET|DB_PASSWORD|REDIS_PASSWORD|ADMIN_PASSWORD)=' .env \
             | cut -d= -f2- | while read -r v; do echo "::add-mask::$v"; done
+          # Test-only: Playwright logs in and creates labs many times from one IP.
+          # LAB_ALLOW_NET_ADMIN=true keeps firewall-config runnable on the runc-only
+          # runner (production default is false without LAB_RUNTIME, see SECURITY.md).
+          # Drop the defaults copied from .env.example so each key appears exactly once.
+          sed -i -E '/^(AUTH_RATE_LIMIT_PER_MIN|NGINX_AUTH_RATE|NGINX_AUTH_BURST|SESSION_RATE_LIMIT_PER_MIN|LAB_ALLOW_NET_ADMIN)=/d' .env
+          cat >> .env <<'EOF'
+          AUTH_RATE_LIMIT_PER_MIN=2000
+          NGINX_AUTH_RATE=1200r/m
+          NGINX_AUTH_BURST=500
+          SESSION_RATE_LIMIT_PER_MIN=600
+          LAB_ALLOW_NET_ADMIN=true
+          EOF
 
       - name: Start stack
         if: steps.guard.outputs.present == 'true'
@@ -175,7 +187,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always() && steps.guard.outputs.present == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: |
@@ -193,17 +205,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: backend-go/go.sum
@@ -212,7 +224,7 @@ jobs:
         working-directory: backend-go
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -245,14 +257,14 @@ jobs:
           - name: lab
             context: backend-go/lab-image
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build ${{ matrix.name }}
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
           push: false

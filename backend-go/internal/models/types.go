@@ -59,6 +59,8 @@ type Session struct {
 	LastCheckAt time.Time `json:"last_check_at,omitempty"`
 	// EndedAt is set by the session manager when the session is stopped or expires.
 	EndedAt *time.Time `json:"ended_at,omitempty"`
+	// EndReason explains why the backend ended the session (disk quota, idle, ...); empty for normal stops.
+	EndReason string `gorm:"size:200;not null;default:''" json:"end_reason,omitempty"`
 }
 
 // Progress tracks a user's result for one task (one row per user+task).
@@ -242,6 +244,11 @@ type TaskSummary struct {
 	Unlocked    bool   `json:"unlocked"`
 	Completed   bool   `json:"completed"`
 	InProgress  bool   `json:"in_progress"`
+	// Available is false when this server cannot run the task (e.g. it needs
+	// CAP_NET_ADMIN and LAB_ALLOW_NET_ADMIN=false); such tasks are never unlocked.
+	Available bool `json:"available"`
+	// UnavailableReason explains Available=false; omitted otherwise.
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
 // CheckName is the client-safe view of a check (no command).

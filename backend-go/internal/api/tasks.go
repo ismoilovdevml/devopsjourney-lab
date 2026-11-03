@@ -59,27 +59,58 @@ func loadTaskState(ctx context.Context, userID uint) (taskState, error) {
 	return st, nil
 }
 
-// unlockedSet applies the unlock rule: task i is unlocked if i == 0 or task i-1 is completed.
-// Admins see everything unlocked. tasks must be sorted by order.
-func unlockedSet(tasks []models.Task, completed map[string]bool, admin bool) map[string]bool {
+// availability maps task ID -> reason it cannot run on this server. Tasks not
+// in the map are available.
+type availability map[string]string
+
+func (a availability) available(id string) bool {
+	_, blocked := a[id]
+	return !blocked
+}
+
+// loadAvailability asks the lab manager which tasks this server can run.
+func loadAvailability(tasks []models.Task) availability {
+	out := availability{}
+	if sessionManager == nil {
+		return out
+	}
+	for _, t := range tasks {
+		if ok, reason := sessionManager.TaskAvailability(t.ID); !ok {
+			out[t.ID] = reason
+		}
+	}
+	return out
+}
+
+// unlockedSet applies the unlock rule. Unavailable tasks are never unlocked and are skipped
+// in the chain: an available task is unlocked if it is the first available task or the
+// previous available task is completed. Admins see every available task unlocked.
+// tasks must be sorted by order.
+func unlockedSet(tasks []models.Task, completed map[string]bool, admin bool, avail availability) map[string]bool {
 	out := make(map[string]bool, len(tasks))
-	for i, t := range tasks {
-		out[t.ID] = admin || i == 0 || completed[tasks[i-1].ID]
+	prev := ""
+	for _, t := range tasks {
+		if !avail.available(t.ID) {
+			out[t.ID] = false
+			continue
+		}
+		out[t.ID] = admin || prev == "" || completed[prev]
+		prev = t.ID
 	}
 	return out
 }
 
 // buildSummaries converts tasks into client-safe summaries for a user.
-func buildSummaries(tasks []models.Task, st taskState, admin bool) []models.TaskSummary {
-	unlocked := unlockedSet(tasks, st.completed, admin)
+func buildSummaries(tasks []models.Task, st taskState, admin bool, avail availability) []models.TaskSummary {
+	unlocked := unlockedSet(tasks, st.completed, admin, avail)
 	out := make([]models.TaskSummary, 0, len(tasks))
 	for _, t := range tasks {
-		out = append(out, summarize(t, unlocked[t.ID], st))
+		out = append(out, summarize(t, unlocked[t.ID], st, avail))
 	}
 	return out
 }
 
-func summarize(t models.Task, unlocked bool, st taskState) models.TaskSummary {
+func summarize(t models.Task, unlocked bool, st taskState, avail availability) models.TaskSummary {
 	return models.TaskSummary{
 		ID:          t.ID,
 		Title:       t.Title,
@@ -92,11 +123,14 @@ func summarize(t models.Task, unlocked bool, st taskState) models.TaskSummary {
 		Unlocked:    unlocked,
 		Completed:   st.completed[t.ID],
 		InProgress:  st.inProgress[t.ID] && !st.completed[t.ID],
+
+		Available:         avail.available(t.ID),
+		UnavailableReason: avail[t.ID],
 	}
 }
 
 // buildDetail converts a task into a TaskDetail (never includes checks[].cmd or setup).
-func buildDetail(t models.Task, unlocked bool, st taskState) models.TaskDetail {
+func buildDetail(t models.Task, unlocked bool, st taskState, avail availability) models.TaskDetail {
 	checks := make([]models.CheckName, 0, len(t.Checks))
 	for _, ch := range t.Checks {
 		checks = append(checks, models.CheckName{Name: ch.Name})
@@ -110,7 +144,7 @@ func buildDetail(t models.Task, unlocked bool, st taskState) models.TaskDetail {
 		image = defaultImage
 	}
 	return models.TaskDetail{
-		TaskSummary: summarize(t, unlocked, st),
+		TaskSummary: summarize(t, unlocked, st, avail),
 		Image:       image,
 		Readme:      t.Readme,
 		Hints:       hints,
@@ -127,7 +161,7 @@ func GetTasks(c *gin.Context) {
 		internalError(c, err, "failed to load task state")
 		return
 	}
-	c.JSON(http.StatusOK, buildSummaries(tasks, st, isAdmin(c)))
+	c.JSON(http.StatusOK, buildSummaries(tasks, st, isAdmin(c), loadAvailability(tasks)))
 }
 
 // GetTask handles GET /api/tasks/:id (optional auth).
@@ -149,8 +183,9 @@ func GetTask(c *gin.Context) {
 		internalError(c, err, "failed to load task state")
 		return
 	}
-	unlocked := unlockedSet(tasks, st.completed, isAdmin(c))
-	c.JSON(http.StatusOK, buildDetail(tasks[idx], unlocked[id], st))
+	avail := loadAvailability(tasks)
+	unlocked := unlockedSet(tasks, st.completed, isAdmin(c), avail)
+	c.JSON(http.StatusOK, buildDetail(tasks[idx], unlocked[id], st, avail))
 }
 
 func indexOfTask(tasks []models.Task, id string) int {

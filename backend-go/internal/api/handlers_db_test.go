@@ -20,6 +20,7 @@ import (
 	"github.com/devops-lab/backend/configs"
 	"github.com/devops-lab/backend/internal/auth"
 	"github.com/devops-lab/backend/internal/database"
+	"github.com/devops-lab/backend/internal/middleware"
 	"github.com/devops-lab/backend/internal/models"
 	"github.com/devops-lab/backend/internal/session"
 	"github.com/devops-lab/backend/internal/task"
@@ -43,9 +44,19 @@ func envOr(k, def string) string {
 
 // fakeLab is an in-process LabManager that persists sessions like the real manager.
 type fakeLab struct {
-	mu     sync.Mutex
-	result models.CheckResponse
-	seq    int
+	mu          sync.Mutex
+	result      models.CheckResponse
+	seq         int
+	unavailable map[string]string // task ID -> reason
+}
+
+func (f *fakeLab) TaskAvailability(taskID string) (bool, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if reason, ok := f.unavailable[taskID]; ok {
+		return false, reason
+	}
+	return true, ""
 }
 
 func (f *fakeLab) CreateSession(ctx context.Context, userID uint, taskID string) (*models.SessionResponse, error) {
@@ -188,6 +199,13 @@ func setupDB(t *testing.T) *testEnv {
 	gin.SetMode(gin.TestMode)
 	lab := &fakeLab{}
 	Init(lab, Options{Version: "test-version", DefaultImage: "devopslab-lab:test"})
+	// The main handler test starts many labs per user; the limit itself is tested separately.
+	middleware.ResetInMemoryLimiter()
+	middleware.SetSessionRateLimit(1000)
+	t.Cleanup(func() {
+		middleware.SetSessionRateLimit(middleware.DefaultSessionRateLimit)
+		middleware.ResetInMemoryLimiter()
+	})
 	r := gin.New()
 	SetupRoutes(r, []string{testOrigin})
 	return &testEnv{t: t, router: r, lab: lab}
@@ -641,5 +659,94 @@ func TestHandlersWithPostgres(t *testing.T) {
 		if strings.Contains(string(r.body), "down\"}") && strings.Contains(string(r.body), "error") {
 			t.Fatalf("readyz must not leak errors: %s", r.body)
 		}
+	})
+}
+
+func TestSessionCreateGuardsWithPostgres(t *testing.T) {
+	e := setupDB(t)
+	// Rebuild the router with the production default (6 lab starts per user per minute).
+	middleware.ResetInMemoryLimiter()
+	middleware.SetSessionRateLimit(middleware.DefaultSessionRateLimit)
+	e.router = gin.New()
+	SetupRoutes(e.router, []string{testOrigin})
+	e.lab.unavailable = map[string]string{"t-two": "This lab needs network-admin privileges (CAP_NET_ADMIN), which this server does not grant."}
+
+	const pw = "s3cure-Passw0rd"
+	dan, _ := e.register("dan", pw)
+	erin, _ := e.register("erin", pw)
+
+	t.Run("unavailable task is reported and skipped in the unlock chain", func(t *testing.T) {
+		var tasks []models.TaskSummary
+		r := e.do("GET", "/api/tasks", nil, dan)
+		e.expect(r, 200, "tasks")
+		r.json(t, &tasks)
+		byID := map[string]models.TaskSummary{}
+		for _, s := range tasks {
+			byID[s.ID] = s
+		}
+		if two := byID["t-two"]; two.Available || two.Unlocked || two.UnavailableReason == "" {
+			t.Fatalf("t-two: %+v", two)
+		}
+		if one := byID["t-one"]; !one.Available || !one.Unlocked {
+			t.Fatalf("t-one: %+v", one)
+		}
+		if three := byID["t-three"]; !three.Available || three.Unlocked {
+			t.Fatalf("t-three must stay locked until t-one is done: %+v", three)
+		}
+		if !strings.Contains(string(r.body), `"available":true`) {
+			t.Fatalf("available must be serialized: %s", r.body)
+		}
+
+		d := e.do("GET", "/api/tasks/t-two", nil, dan)
+		e.expect(d, 200, "detail")
+		if !strings.Contains(string(d.body), `"available":false`) || !strings.Contains(string(d.body), "CAP_NET_ADMIN") {
+			t.Fatalf("detail: %s", d.body)
+		}
+
+		// Completing t-one unlocks t-three (the next available task).
+		cr := e.do("POST", "/api/sessions", map[string]string{"taskId": "t-one"}, erin)
+		e.expect(cr, 201, "start t-one")
+		var sr models.SessionResponse
+		cr.json(t, &sr)
+		e.lab.setResult(1, 1)
+		e.expect(e.do("POST", "/api/check/"+sr.SessionID, nil, erin), 200, "check")
+		var after []models.TaskSummary
+		e.do("GET", "/api/tasks", nil, erin).json(t, &after)
+		for _, s := range after {
+			if s.ID == "t-three" && !s.Unlocked {
+				t.Fatalf("t-three must unlock after t-one when t-two is unavailable: %+v", after)
+			}
+			if s.ID == "t-two" && s.Unlocked {
+				t.Fatalf("t-two must never unlock: %+v", s)
+			}
+		}
+	})
+
+	t.Run("create on unavailable task is 409", func(t *testing.T) {
+		r := e.do("POST", "/api/sessions", map[string]string{"taskId": "t-two"}, dan)
+		e.expect(r, http.StatusConflict, "unavailable task")
+		var body models.ErrorResponse
+		r.json(t, &body)
+		if body.Error != "Task unavailable" || !strings.Contains(body.Message, "CAP_NET_ADMIN") {
+			t.Fatalf("body: %s", r.body)
+		}
+	})
+
+	t.Run("per-user lab start rate limit", func(t *testing.T) {
+		// dan already used 1 of 6 above (the 409 counts: the limiter runs first).
+		for i := 0; i < 5; i++ {
+			e.expect(e.do("POST", "/api/sessions", map[string]string{"taskId": "t-one"}, dan), 201, fmt.Sprintf("start %d", i))
+		}
+		r := e.do("POST", "/api/sessions", map[string]string{"taskId": "t-one"}, dan)
+		e.expect(r, http.StatusTooManyRequests, "7th lab start in a minute")
+		if !strings.Contains(string(r.body), "Too many lab starts") {
+			t.Fatalf("429 body: %s", r.body)
+		}
+		// Recreate shares the bucket.
+		var active models.SessionResponse
+		e.do("GET", "/api/sessions/active", nil, dan).json(t, &active)
+		e.expect(e.do("POST", "/api/sessions/"+active.SessionID+"/recreate", nil, dan), http.StatusTooManyRequests, "recreate after limit")
+		// Other users are not affected, even from the same IP range.
+		e.expect(e.do("POST", "/api/sessions", map[string]string{"taskId": "t-one"}, erin), 201, "other user")
 	})
 }

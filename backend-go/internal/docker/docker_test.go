@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -75,7 +76,7 @@ func TestBuildHostConfigDefaults(t *testing.T) {
 }
 
 func TestBuildHostConfigNetworkAndExtraCaps(t *testing.T) {
-	hc, err := BuildHostConfig(&ContainerConfig{Network: true, ExtraCapabilities: []string{"net_admin", "CAP_NET_RAW", "NET_ADMIN"}})
+	hc, err := BuildHostConfig(&ContainerConfig{Network: true, ExtraCapabilities: []string{"net_admin", "CAP_NET_ADMIN", "NET_ADMIN"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +84,11 @@ func TestBuildHostConfigNetworkAndExtraCaps(t *testing.T) {
 		t.Errorf("NetworkMode = %q, want bridge", hc.NetworkMode)
 	}
 	got := strings.Join(hc.CapAdd, ",")
-	if !strings.HasSuffix(got, ",NET_ADMIN,NET_RAW") {
-		t.Errorf("CapAdd = %s, want base + NET_ADMIN,NET_RAW (deduplicated)", got)
+	if !strings.HasSuffix(got, ",NET_ADMIN") || strings.Count(got, "NET_ADMIN") != 1 {
+		t.Errorf("CapAdd = %s, want base + NET_ADMIN (deduplicated)", got)
+	}
+	if hc.Runtime != "" || hc.StorageOpt != nil {
+		t.Errorf("runtime/storage must be unset by default: %q %v", hc.Runtime, hc.StorageOpt)
 	}
 	if hc.PidsLimit != nil {
 		t.Error("PidsLimit 0 should mean unset")
@@ -95,13 +99,42 @@ func TestBuildHostConfigNetworkAndExtraCaps(t *testing.T) {
 }
 
 func TestBuildCapAddRejectsDangerousCaps(t *testing.T) {
-	for _, c := range []string{"SYS_ADMIN", "ALL", "SYS_MODULE", "SYS_PTRACE", "DAC_READ_SEARCH", "bogus"} {
+	for _, c := range []string{"SYS_ADMIN", "ALL", "SYS_MODULE", "SYS_PTRACE", "DAC_READ_SEARCH", "NET_RAW", "CAP_NET_RAW", "bogus"} {
 		if _, err := BuildCapAdd([]string{c}); err == nil {
 			t.Errorf("BuildCapAdd(%s) should fail", c)
 		}
 		if _, err := BuildHostConfig(&ContainerConfig{ExtraCapabilities: []string{c}}); err == nil {
 			t.Errorf("BuildHostConfig with %s should fail", c)
 		}
+	}
+}
+
+func TestBuildHostConfigRuntimeAndStorage(t *testing.T) {
+	hc, err := BuildHostConfig(&ContainerConfig{Runtime: "runsc", StorageSize: "2G"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hc.Runtime != "runsc" {
+		t.Errorf("Runtime = %q, want runsc", hc.Runtime)
+	}
+	if hc.StorageOpt["size"] != "2G" || len(hc.StorageOpt) != 1 {
+		t.Errorf("StorageOpt = %v, want size=2G", hc.StorageOpt)
+	}
+}
+
+func TestIsStorageOptUnsupported(t *testing.T) {
+	yes := []string{
+		"Error response from daemon: --storage-opt is supported only for overlay over xfs with 'pquota' mount option",
+		"Error response from daemon: Storage Opt size not supported",
+		"storage option size is not supported",
+	}
+	for _, m := range yes {
+		if !IsStorageOptUnsupported(errors.New(m)) {
+			t.Errorf("not detected: %q", m)
+		}
+	}
+	if IsStorageOptUnsupported(errors.New("No such image: x")) || IsStorageOptUnsupported(nil) {
+		t.Error("false positive")
 	}
 }
 
@@ -174,9 +207,22 @@ func TestLimitedBuffer(t *testing.T) {
 }
 
 func TestWrapWithTimeout(t *testing.T) {
-	got := strings.Join(wrapWithTimeout("echo hi", 10), " ")
-	if got != "timeout -k 2 10 bash -lc echo hi" {
-		t.Errorf("argv = %q", got)
+	argv := wrapWithTimeout("echo hi", 10)
+	got := strings.Join(argv, " ")
+	want := "/usr/bin/timeout -k 2 10 /usr/bin/env -i PATH=" + checkPath +
+		" HOME=/root LANG=C.UTF-8 TERM=dumb /bin/bash --noprofile --norc -c echo hi"
+	if got != want {
+		t.Errorf("argv = %q\nwant %q", got, want)
+	}
+	// The command must be a single argv element (no shell re-splitting) and
+	// no login/interactive flag may sneak in.
+	if argv[len(argv)-1] != "echo hi" {
+		t.Errorf("command is not the last argv element: %q", argv)
+	}
+	for _, a := range argv[:len(argv)-1] {
+		if a == "-l" || a == "-lc" || a == "--login" {
+			t.Errorf("unexpected flag %q in %q", a, argv)
+		}
 	}
 }
 

@@ -196,3 +196,51 @@ func TestCloseAllEmpty(t *testing.T) {
 		t.Fatalf("CloseAll on empty registry = %d", n)
 	}
 }
+
+func TestAuthCloseReason(t *testing.T) {
+	cases := []struct {
+		err   error
+		close bool
+	}{
+		{nil, false},
+		{errors.New("db timeout"), false},
+		{middleware.ErrTokenRevoked, true},
+		{middleware.ErrUserDisabled, true},
+		{middleware.ErrUnauthenticated, true},
+	}
+	for _, c := range cases {
+		reason, ok := authCloseReason(c.err)
+		if ok != c.close || (ok && reason == "") {
+			t.Errorf("authCloseReason(%v) = %q, %v; want close=%v", c.err, reason, ok, c.close)
+		}
+	}
+	if CloseAuthRevoked != 4401 {
+		t.Errorf("close code = %d", CloseAuthRevoked)
+	}
+}
+
+func TestSessionActivityRegistry(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if attached, last := SessionActivity("never"); attached || !last.IsZero() {
+		t.Fatalf("unknown session: %v %v", attached, last)
+	}
+	trackSession("s1", +1, t0)
+	trackSession("s1", +1, t0.Add(time.Minute))
+	if attached, last := SessionActivity("s1"); !attached || !last.Equal(t0.Add(time.Minute)) {
+		t.Fatalf("two terminals: %v %v", attached, last)
+	}
+	trackSession("s1", -1, t0.Add(2*time.Minute))
+	if attached, _ := SessionActivity("s1"); !attached {
+		t.Fatal("one terminal still open")
+	}
+	trackSession("s1", -1, t0.Add(3*time.Minute))
+	attached, last := SessionActivity("s1")
+	if attached || !last.Equal(t0.Add(3*time.Minute)) {
+		t.Fatalf("all closed: %v %v", attached, last)
+	}
+	// A stray detach for an unknown session does not create an entry.
+	trackSession("ghost", -1, t0)
+	if _, last := SessionActivity("ghost"); !last.IsZero() {
+		t.Fatal("ghost entry created")
+	}
+}

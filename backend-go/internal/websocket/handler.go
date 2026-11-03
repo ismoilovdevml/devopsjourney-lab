@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/devops-lab/backend/internal/docker"
+	"github.com/devops-lab/backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/moby/moby/client"
@@ -28,7 +30,81 @@ const (
 	maxTermSize    = 500
 	killExecWait   = 5 * time.Second
 	outputBufBytes = 32 << 10
+
+	// CloseAuthRevoked is the close code sent when the user behind an open
+	// terminal is deleted, deactivated, or changed their password (4000-4999
+	// are application codes; 4401 mirrors HTTP 401).
+	CloseAuthRevoked = 4401
 )
+
+// revalidate re-checks the socket owner's account; variable so tests can stub it.
+var revalidate = middleware.Revalidate
+
+// authCloseReason maps a revalidation error to a close reason. ok is false
+// for nil and for transient errors (DB hiccup), which must not end a terminal.
+func authCloseReason(err error) (reason string, ok bool) {
+	switch {
+	case err == nil:
+		return "", false
+	case errors.Is(err, middleware.ErrTokenRevoked):
+		return "signed out: password changed", true
+	case errors.Is(err, middleware.ErrUserDisabled):
+		return "account disabled", true
+	case errors.Is(err, middleware.ErrUnauthenticated):
+		return "account no longer exists", true
+	default:
+		return "", false
+	}
+}
+
+// sessionActivity tracks terminal attachment per lab session, for idle
+// reclaim (session.Manager.SetActivitySource).
+type sessionActivity struct {
+	conns int
+	last  time.Time
+}
+
+// activityRetention bounds how long a detached session's last-activity time is kept.
+const activityRetention = 6 * time.Hour
+
+var activity = struct {
+	sync.Mutex
+	m map[string]*sessionActivity
+}{m: make(map[string]*sessionActivity)}
+
+// trackSession records a terminal attaching (delta=+1) or detaching (delta=-1).
+func trackSession(sessionID string, delta int, now time.Time) {
+	activity.Lock()
+	defer activity.Unlock()
+	a, ok := activity.m[sessionID]
+	if !ok {
+		if delta < 0 {
+			return
+		}
+		if len(activity.m) > 1000 {
+			for id, e := range activity.m {
+				if e.conns == 0 && now.Sub(e.last) > activityRetention {
+					delete(activity.m, id)
+				}
+			}
+		}
+		a = &sessionActivity{}
+		activity.m[sessionID] = a
+	}
+	a.conns = max(a.conns+delta, 0)
+	a.last = now
+}
+
+// SessionActivity reports whether a terminal is attached to sessionID and
+// when one last attached or detached (zero if never seen by this process).
+func SessionActivity(sessionID string) (attached bool, last time.Time) {
+	activity.Lock()
+	defer activity.Unlock()
+	if a, ok := activity.m[sessionID]; ok {
+		return a.conns > 0, a.last
+	}
+	return false, time.Time{}
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:   4096,
@@ -182,6 +258,8 @@ func Handler(c *gin.Context) {
 	t := &terminal{conn: conn, hijack: hijack, cancel: cancel}
 	register(t)
 	defer unregister(t)
+	trackSession(sess.ID, +1, time.Now())
+	defer func() { trackSession(sess.ID, -1, time.Now()) }()
 	logger.Info().Msg("ws: terminal connected")
 
 	var lastActivity atomic.Int64
@@ -215,7 +293,7 @@ func Handler(c *gin.Context) {
 		}
 	}()
 
-	// keepalive, idle timeout and session expiry
+	// keepalive, idle timeout, session expiry and account revalidation
 	go func() {
 		defer wg.Done()
 		ping := time.NewTicker(pingPeriod)
@@ -232,6 +310,13 @@ func Handler(c *gin.Context) {
 			case <-ping.C:
 				if time.Since(time.Unix(0, lastActivity.Load())) > idleTimeout {
 					t.close(websocket.CloseNormalClosure, "idle timeout")
+					return
+				}
+				// A password change, deactivation or deletion must also end
+				// terminals that were opened before it (cached up to 30s).
+				if reason, revoked := authCloseReason(revalidate(id)); revoked {
+					logger.Info().Str("reason", reason).Msg("ws: closing terminal, credentials no longer valid")
+					t.close(CloseAuthRevoked, reason)
 					return
 				}
 				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {

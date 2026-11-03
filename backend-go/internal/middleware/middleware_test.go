@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -522,5 +523,114 @@ func TestAuthRateLimiterConfigurable(t *testing.T) {
 	SetAuthRateLimit(1 << 30) // clamped to 10000
 	if got := authRateLimit.Load(); got != 10000 {
 		t.Fatalf("clamp high: %d", got)
+	}
+}
+
+func TestSessionRateLimiterPerUser(t *testing.T) {
+	fallbackLimiter.reset()
+	t.Cleanup(func() { fallbackLimiter.reset(); SetSessionRateLimit(DefaultSessionRateLimit) })
+
+	SetSessionRateLimit(DefaultSessionRateLimit)
+	r := gin.New()
+	asUser := func(c *gin.Context) {
+		if v := c.GetHeader("X-Test-User"); v != "" {
+			id, _ := strconv.Atoi(v)
+			c.Set("user_id", uint(id))
+		}
+		c.Next()
+	}
+	rl := SessionRateLimiter()
+	ok := func(c *gin.Context) { c.Status(http.StatusCreated) }
+	r.POST("/api/sessions", asUser, rl, ok)
+	r.POST("/api/sessions/:id/recreate", asUser, rl, ok)
+
+	send := func(path, user string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "198.51.100.20:1234" // same IP for everyone: the key is the user
+		if user != "" {
+			req.Header.Set("X-Test-User", user)
+		}
+		return do(r, req)
+	}
+	// 6 per minute, shared between create and recreate.
+	for i := 0; i < 4; i++ {
+		if w := send("/api/sessions", "7"); w.Code != http.StatusCreated {
+			t.Fatalf("create %d: %d", i, w.Code)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if w := send("/api/sessions/abc/recreate", "7"); w.Code != http.StatusCreated {
+			t.Fatalf("recreate %d: %d", i, w.Code)
+		}
+	}
+	w := send("/api/sessions", "7")
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("7th: %d retry-after=%q", w.Code, w.Header().Get("Retry-After"))
+	}
+	if !strings.Contains(w.Body.String(), "Too many lab starts") {
+		t.Fatalf("body = %s", w.Body.String())
+	}
+	// Another user behind the same IP is unaffected.
+	if w := send("/api/sessions", "8"); w.Code != http.StatusCreated {
+		t.Fatalf("other user: %d", w.Code)
+	}
+	// Unauthenticated requests are not counted (AuthMiddleware handles them).
+	for i := 0; i < 10; i++ {
+		if w := send("/api/sessions", ""); w.Code != http.StatusCreated {
+			t.Fatalf("anonymous %d: %d", i, w.Code)
+		}
+	}
+
+	SetSessionRateLimit(0)
+	if got := sessionRateLimit.Load(); got != 1 {
+		t.Fatalf("clamp low: %d", got)
+	}
+}
+
+func TestRevalidate(t *testing.T) {
+	changed := time.Now().Add(-time.Minute)
+	stubUsers(t, map[uint]*UserState{
+		1: {ID: 1, Username: "ok", Role: "user", Active: true},
+		2: {ID: 2, Username: "off", Role: "user", Active: false},
+		3: {ID: 3, Username: "pw", Role: "user", Active: true, PasswordChangedAt: &changed},
+	}, nil)
+
+	if err := Revalidate(&Identity{UserID: 1, IssuedAt: time.Now().Add(-time.Hour)}); err != nil {
+		t.Fatalf("active user: %v", err)
+	}
+	if err := Revalidate(&Identity{UserID: 2, IssuedAt: time.Now()}); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("disabled user: %v", err)
+	}
+	if err := Revalidate(&Identity{UserID: 3, IssuedAt: changed.Add(-time.Hour)}); !errors.Is(err, ErrTokenRevoked) {
+		t.Fatalf("token older than password change: %v", err)
+	}
+	if err := Revalidate(&Identity{UserID: 3, IssuedAt: changed.Add(time.Second)}); err != nil {
+		t.Fatalf("token newer than password change: %v", err)
+	}
+	if err := Revalidate(&Identity{UserID: 99, IssuedAt: time.Now()}); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("deleted user: %v", err)
+	}
+}
+
+func TestRevalidateTransientError(t *testing.T) {
+	stubUsers(t, nil, errors.New("db down"))
+	err := Revalidate(&Identity{UserID: 1, IssuedAt: time.Now()})
+	if err == nil || errors.Is(err, ErrUnauthenticated) || errors.Is(err, ErrUserDisabled) || errors.Is(err, ErrTokenRevoked) {
+		t.Fatalf("transient error must be distinguishable, got %v", err)
+	}
+}
+
+func TestAuthenticateSetsIssuedAt(t *testing.T) {
+	stubUsers(t, map[uint]*UserState{5: {ID: 5, Username: "u", Role: "user", Active: true}}, nil)
+	tok := tokenFor(t, 5, "user")
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.Header.Set("Authorization", "Bearer "+tok)
+	id, _, err := Authenticate(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id.IssuedAt.IsZero() || time.Since(id.IssuedAt) > time.Minute {
+		t.Fatalf("IssuedAt = %v", id.IssuedAt)
 	}
 }

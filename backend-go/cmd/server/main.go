@@ -32,7 +32,31 @@ const (
 	sessionShutdown = 10 * time.Second
 	// sessionReapInterval is how often expired sessions and orphaned lab containers are swept.
 	sessionReapInterval = 5 * time.Minute
+	// resourceGuardInterval is how often lab disk usage and idle sessions are checked; it
+	// bounds how far past LAB_DISK_MAX_BYTES a student can write before the lab is stopped.
+	resourceGuardInterval = time.Minute
 )
+
+// checkDefaultAdminPasswords refuses to start in production while an admin account still
+// uses a well-known default password; in development it only warns loudly.
+func checkDefaultAdminPasswords(production bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	weak, err := database.AdminsWithDefaultPassword(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not check admin accounts for default passwords")
+		return
+	}
+	if len(weak) == 0 {
+		return
+	}
+	msg := "admin account(s) use a well-known default password; log in and change it " +
+		"(POST /api/me/password), or reset it in the database, then restart"
+	if production {
+		log.Fatal().Strs("admins", weak).Msg("refusing to start: " + msg)
+	}
+	log.Warn().Strs("admins", weak).Msg("SECURITY WARNING: " + msg + " (allowed only outside production)")
+}
 
 func main() {
 	cfg := configs.Load()
@@ -65,6 +89,7 @@ func main() {
 	if err := database.SeedAdminUser(); err != nil {
 		log.Error().Err(err).Msg("Failed to seed admin user")
 	}
+	checkDefaultAdminPasswords(cfg.IsProduction())
 
 	if err := database.ConnectRedis(&cfg.Redis); err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to Redis")
@@ -85,6 +110,7 @@ func main() {
 
 	websocket.InitUpgrader(cfg.CORS.Origins)
 	middleware.SetAuthRateLimit(cfg.Security.AuthRateLimitPerMin)
+	middleware.SetSessionRateLimit(cfg.Security.SessionRateLimitPerMin)
 	if cfg.Security.AuthRateLimitPerMin != configs.DefaultAuthRateLimitPerMin {
 		log.Warn().Int("per_minute", cfg.Security.AuthRateLimitPerMin).
 			Msg("AUTH_RATE_LIMIT_PER_MIN differs from the production default")
@@ -93,6 +119,13 @@ func main() {
 	sessionManager := session.NewManager(&cfg.Docker)
 	// Reconciles DB sessions with lab containers now (crash recovery) and every interval.
 	sessionManager.StartPeriodicCleanup(sessionReapInterval)
+	// Idle reclaim needs to know which sessions have a terminal attached.
+	sessionManager.SetActivitySource(websocket.SessionActivity)
+	// Disk quota (LAB_DISK_MAX_BYTES) and idle reclaim (LAB_IDLE_TIMEOUT).
+	sessionManager.StartResourceGuards(resourceGuardInterval)
+	log.Info().Str("lab_runtime", cfg.Docker.Runtime).Bool("allow_net_admin", cfg.Docker.AllowNetAdmin).
+		Str("storage_size", cfg.Docker.StorageSize).Int64("disk_max_bytes", cfg.Docker.DiskMaxBytes).
+		Dur("idle_timeout", cfg.Docker.IdleTimeout).Msg("Lab sandbox settings")
 
 	poolMonitor := database.NewPoolMonitor(30 * time.Second)
 	poolMonitor.Start()

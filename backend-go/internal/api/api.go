@@ -26,6 +26,8 @@ type LabManager interface {
 	Recreate(ctx context.Context, sessionID string) (*models.SessionResponse, error)
 	ActiveSessionForUser(ctx context.Context, userID uint) (*models.Session, error)
 	ResourceStats(ctx context.Context) (*models.ResourceStats, error)
+	// TaskAvailability reports whether this server can run the task, and why not.
+	TaskAvailability(taskID string) (available bool, reason string)
 }
 
 // Options are the process-wide settings the handlers need besides the lab manager.

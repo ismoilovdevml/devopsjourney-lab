@@ -34,6 +34,9 @@ var (
 	ErrCheckInProgress = errors.New("a check is already running for this session")
 	// ErrContainerNotRunning means the lab container is gone or stopped.
 	ErrContainerNotRunning = errors.New("lab container is not running")
+	// ErrTaskUnavailable means the task needs something this server does not
+	// grant (e.g. CAP_NET_ADMIN with LAB_ALLOW_NET_ADMIN=false).
+	ErrTaskUnavailable = errors.New("task is not available on this server")
 )
 
 // Session statuses stored in the database.
@@ -73,6 +76,13 @@ type Manager struct {
 	locksMu    sync.Mutex
 	userLocks  map[uint]*sync.Mutex
 	checksBusy map[string]bool
+
+	// startedAt is the baseline for idle detection: terminal activity is
+	// tracked in memory, so nothing before a restart is known.
+	startedAt time.Time
+	// activity reports terminal attachment per session (see SetActivitySource).
+	activityMu sync.RWMutex
+	activity   ActivityFunc
 }
 
 // NewManager creates a session manager.
@@ -88,6 +98,7 @@ func NewManager(cfg *configs.DockerConfig) *Manager {
 		cleanupManager: NewCleanupManager(),
 		userLocks:      make(map[uint]*sync.Mutex),
 		checksBusy:     make(map[string]bool),
+		startedAt:      time.Now(),
 	}
 }
 
@@ -100,6 +111,9 @@ func (m *Manager) CreateSession(ctx context.Context, userID uint, taskID string)
 	taskObj, err := task.GetTask(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrTaskNotFound, taskID)
+	}
+	if ok, reason := m.TaskAvailability(taskID); !ok {
+		return nil, fmt.Errorf("%w: %s", ErrTaskUnavailable, reason)
 	}
 
 	unlock := m.lockUser(userID)
@@ -174,6 +188,8 @@ func (m *Manager) provisionContainer(ctx context.Context, sessionID string, user
 		},
 		ExtraCapabilities: rt.Capabilities,
 		Network:           rt.Network,
+		Runtime:           m.cfg.Runtime,
+		StorageSize:       m.cfg.StorageSize,
 	}
 
 	if err := docker.EnsureImage(ctx, cc.Image); err != nil {
@@ -451,7 +467,13 @@ func (m *Manager) endSession(ctx context.Context, sessionID, status string) erro
 // finishSession tears down a loaded session; errors are logged, not returned,
 // so the DB row is always closed even if Docker misbehaves.
 func (m *Manager) finishSession(ctx context.Context, sess *models.Session, status string) {
-	log.Info().Str("session_id", sess.ID).Str("status", status).Msg("Ending session")
+	m.finishSessionWithReason(ctx, sess, status, "")
+}
+
+// finishSessionWithReason is finishSession that also records why the backend
+// ended the session (sessions.end_reason).
+func (m *Manager) finishSessionWithReason(ctx context.Context, sess *models.Session, status, reason string) {
+	log.Info().Str("session_id", sess.ID).Str("status", status).Str("reason", reason).Msg("Ending session")
 	m.cleanupManager.Remove(sess.ID)
 
 	if err := docker.RemoveContainer(ctx, sess.ContainerID); err != nil {
@@ -461,7 +483,7 @@ func (m *Manager) finishSession(ctx context.Context, sess *models.Session, statu
 	now := time.Now()
 	if err := database.DB.WithContext(ctx).Model(&models.Session{}).
 		Where("id = ?", sess.ID).
-		Updates(map[string]interface{}{"status": status, "ended_at": now}).Error; err != nil {
+		Updates(map[string]interface{}{"status": status, "ended_at": now, "end_reason": reason}).Error; err != nil {
 		log.Error().Err(err).Str("session_id", sess.ID).Msg("Failed to update session status")
 	}
 	m.dropCache(ctx, sess.ID)

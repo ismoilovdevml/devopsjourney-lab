@@ -19,6 +19,8 @@ type Identity struct {
 	UserID   uint
 	Username string
 	Role     string
+	// IssuedAt is the token's iat; Revalidate uses it to detect revocation.
+	IssuedAt time.Time
 }
 
 // UserState is the subset of the user row needed to authorize a request.
@@ -159,7 +161,31 @@ func Authenticate(c *gin.Context) (*Identity, int, error) {
 	if tokenRevoked(claims.IssuedAt.Time, state.PasswordChangedAt) {
 		return nil, http.StatusUnauthorized, ErrTokenRevoked
 	}
-	return &Identity{UserID: state.ID, Username: state.Username, Role: state.Role}, http.StatusOK, nil
+	return &Identity{UserID: state.ID, Username: state.Username, Role: state.Role, IssuedAt: claims.IssuedAt.Time}, http.StatusOK, nil
+}
+
+// Revalidate re-checks an identity resolved earlier (e.g. for a long-lived
+// WebSocket): it returns ErrUnauthenticated if the user was deleted,
+// ErrUserDisabled if deactivated and ErrTokenRevoked if the password changed
+// after the token was issued. Any other error is a transient lookup failure
+// and must not end the connection. Uses the same cache as Authenticate
+// (userCacheTTL), so changes apply within 30s on other instances and
+// immediately on this one (InvalidateUserCache).
+func Revalidate(id *Identity) error {
+	state, err := getUserState(id.UserID)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			return ErrUnauthenticated
+		}
+		return err
+	}
+	if !state.Active {
+		return ErrUserDisabled
+	}
+	if tokenRevoked(id.IssuedAt, state.PasswordChangedAt) {
+		return ErrTokenRevoked
+	}
+	return nil
 }
 
 func setIdentity(c *gin.Context, id *Identity) {
