@@ -1,0 +1,9 @@
+983ff8ecc657cc030b1456a267bb501cab8f56a6:backend-go/internal/database/seed.go:generic-api-key:19
+983ff8ecc657cc030b1456a267bb501cab8f56a6:backend-go/internal/auth/jwt_test.go:generic-api-key:16
+983ff8ecc657cc030b1456a267bb501cab8f56a6:backend-go/configs/config_test.go:generic-api-key:8
+983ff8ecc657cc030b1456a267bb501cab8f56a6:backend-go/internal/middleware/middleware_test.go:generic-api-key:22
+a08f98228156faea69aef96db02d10fc06d67d21:LOCALHOST_READY.md:curl-auth-header:291
+a08f98228156faea69aef96db02d10fc06d67d21:LOCALHOST_READY.md:curl-auth-header:297
+a08f98228156faea69aef96db02d10fc06d67d21:LOCALHOST_READY.md:curl-auth-header:305
+a08f98228156faea69aef96db02d10fc06d67d21:MIGRATION-GUIDE.md:generic-api-key:256
+a08f98228156faea69aef96db02d10fc06d67d21:IMPLEMENTATION_GUIDE.md:curl-auth-header:998
