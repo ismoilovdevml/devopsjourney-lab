@@ -241,6 +241,7 @@ jobs:
           docker run --rm -v "$PWD:/src:ro" aquasec/trivy:0.74.0 config \
             --quiet --exit-code 1 --severity HIGH,CRITICAL \
             --skip-files backend-go/lab-image/Dockerfile \
+            --ignorefile /src/.trivyignore.yaml \
             /src
 
   docker:

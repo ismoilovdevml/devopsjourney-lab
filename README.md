@@ -48,6 +48,10 @@ Students register on the login page.
 
 Stop the stack with `make down`. Run `make help` for every command.
 
+> Postgres keeps the password it was created with. If you regenerate `.env` later, run `make clean`
+> (this deletes the database) before `make up`, or the backend will fail with
+> `password authentication failed`.
+
 ## Tasks
 
 | # | Task | Topic | Level |

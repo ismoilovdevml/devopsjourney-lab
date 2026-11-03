@@ -1,0 +1,6 @@
+# Reviewed Trivy exceptions. Keep each one scoped to a path and explained.
+misconfigurations:
+  - id: DS-0031
+    paths:
+      - frontend-vue/Dockerfile
+    statement: NGINX_AUTH_RATE / NGINX_AUTH_BURST are nginx rate-limit defaults, not secrets.
