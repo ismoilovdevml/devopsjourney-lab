@@ -1,0 +1,14 @@
+#!/bin/bash
+# Minimal stand-in for the Docker CLI: the lab has no Docker daemon, but
+# compose files can still be validated offline.
+if [ "$1" = "compose" ]; then
+  shift
+  exec /usr/local/bin/docker-compose "$@"
+fi
+cat >&2 <<'MSG'
+This lab has no Docker daemon, so containers cannot be built or run here.
+Available offline tools:
+  docker compose -f compose.yaml config   validate and render a compose file
+  hadolint Dockerfile                     lint a Dockerfile
+MSG
+exit 1
