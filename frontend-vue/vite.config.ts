@@ -38,9 +38,11 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          xterm: ['xterm', 'xterm-addon-fit'],
-          vendor: ['vue', 'vue-router', 'pinia', 'axios']
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (/[\\/]xterm(-addon-fit)?[\\/]/.test(id)) return 'xterm'
+          if (/[\\/](@vue|vue|vue-router|pinia|axios)[\\/]/.test(id)) return 'vendor'
+          return undefined
         }
       }
     }
