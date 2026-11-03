@@ -198,8 +198,7 @@ test.describe('lab workspace', () => {
 
   test('checks ignore a root-controlled ~/.bash_profile (cheat resistance)', async ({ page, student }) => {
     void student
-    // Known bug H1: checks run as `bash -lc` (backend-go/internal/docker/exec.go), so a root-written
-    // ~/.bash_profile containing `exit 0` makes every check exit 0. Remove this line once fixed.
+    // Regression for H1: checks must run without shell startup files the student controls.
     await startLabFromTasks(page, NGINX)
     expect((await runCommand(page, `echo 'exit 0' > /root/.bash_profile`)).exitCode).toBe(0)
 
