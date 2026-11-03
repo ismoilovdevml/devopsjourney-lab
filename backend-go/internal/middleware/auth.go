@@ -27,6 +27,8 @@ type UserState struct {
 	Username string
 	Role     string
 	Active   bool
+	// PasswordChangedAt, when set, invalidates tokens issued before it.
+	PasswordChangedAt *time.Time
 }
 
 var (
@@ -34,6 +36,8 @@ var (
 	ErrUnauthenticated = errors.New("authentication required")
 	// ErrUserDisabled means the token is valid but the user is deleted or deactivated.
 	ErrUserDisabled = errors.New("account disabled")
+	// ErrTokenRevoked means the token was issued before the user's last password change.
+	ErrTokenRevoked = errors.New("token revoked")
 	// errUserNotFound is returned by lookupUser when the row is missing or soft-deleted.
 	errUserNotFound = errors.New("user not found")
 )
@@ -44,14 +48,31 @@ var lookupUser = func(id uint) (*UserState, error) {
 		return nil, errors.New("database not initialized")
 	}
 	var u models.User
-	err := database.DB.Select("id", "username", "role", "active").Where("id = ?", id).Take(&u).Error
+	err := database.DB.Select("id", "username", "role", "active", "password_changed_at").Where("id = ?", id).Take(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errUserNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &UserState{ID: u.ID, Username: u.Username, Role: u.Role, Active: u.Active}, nil
+	return &UserState{
+		ID:                u.ID,
+		Username:          u.Username,
+		Role:              u.Role,
+		Active:            u.Active,
+		PasswordChangedAt: u.PasswordChangedAt,
+	}, nil
+}
+
+// tokenRevoked reports whether a token issued at issuedAt predates the user's last password
+// change. JWT "iat" has one-second precision, so the change time is truncated to seconds: a
+// token minted in the same second as the change (e.g. the one re-issued to the client that
+// changed the password) stays valid.
+func tokenRevoked(issuedAt time.Time, passwordChangedAt *time.Time) bool {
+	if passwordChangedAt == nil {
+		return false
+	}
+	return issuedAt.Before(passwordChangedAt.Truncate(time.Second))
 }
 
 // userCacheTTL bounds how long a deactivation/role change can take to apply.
@@ -68,7 +89,7 @@ var userCache = struct {
 }{m: make(map[uint]cachedUser)}
 
 // InvalidateUserCache drops the cached state for a user. Call it after changing a user's
-// role/active flag or deleting them so the change applies immediately on this instance.
+// role/active flag/password or deleting them so the change applies immediately on this instance.
 func InvalidateUserCache(userID uint) {
 	userCache.Lock()
 	delete(userCache.m, userID)
@@ -112,7 +133,8 @@ func getUserState(id uint) (*UserState, error) {
 }
 
 // Authenticate resolves the caller from the auth cookie or Bearer header, validates the JWT
-// and checks the user still exists and is active. On failure it returns the HTTP status to use.
+// and checks the user still exists, is active and has not changed their password since the
+// token was issued. On failure it returns the HTTP status to use.
 // Role and username come from the database (not the token) so demotions apply within userCacheTTL.
 func Authenticate(c *gin.Context) (*Identity, int, error) {
 	token := auth.TokenFromRequest(c)
@@ -133,6 +155,9 @@ func Authenticate(c *gin.Context) (*Identity, int, error) {
 	}
 	if !state.Active {
 		return nil, http.StatusForbidden, ErrUserDisabled
+	}
+	if tokenRevoked(claims.IssuedAt.Time, state.PasswordChangedAt) {
+		return nil, http.StatusUnauthorized, ErrTokenRevoked
 	}
 	return &Identity{UserID: state.ID, Username: state.Username, Role: state.Role}, http.StatusOK, nil
 }

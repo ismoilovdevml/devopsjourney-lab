@@ -3,7 +3,7 @@ package task
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -65,6 +65,14 @@ func LoadDir(dir string) ([]models.Task, error) {
 		return nil, fmt.Errorf("failed to read tasks directory: %w", err)
 	}
 
+	// All reads go through an os.Root, so a symlink inside a task directory cannot make the
+	// loader read files outside the tasks directory.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open tasks directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
 	loaded := []models.Task{}
 	seen := map[string]bool{}
 	for _, entry := range entries {
@@ -72,13 +80,12 @@ func LoadDir(dir string) ([]models.Task, error) {
 			continue
 		}
 
-		taskFile := filepath.Join(dir, entry.Name(), "task.yaml")
-		if _, err := os.Stat(taskFile); err != nil {
+		if _, err := root.Stat(path.Join(entry.Name(), "task.yaml")); err != nil {
 			log.Warn().Str("task_dir", entry.Name()).Msg("task.yaml not found, skipping")
 			continue
 		}
 
-		t, err := loadTask(taskFile, entry.Name())
+		t, err := loadTask(root, entry.Name())
 		if err != nil {
 			log.Error().Err(err).Str("task_dir", entry.Name()).Msg("Failed to load task")
 			continue
@@ -100,8 +107,9 @@ func LoadDir(dir string) ([]models.Task, error) {
 	return loaded, nil
 }
 
-func loadTask(filename, dirName string) (*models.Task, error) {
-	data, err := os.ReadFile(filename)
+// loadTask reads <dirName>/task.yaml (and the optional README.md) inside root.
+func loadTask(root *os.Root, dirName string) (*models.Task, error) {
+	data, err := root.ReadFile(path.Join(dirName, "task.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -118,7 +126,7 @@ func loadTask(filename, dirName string) (*models.Task, error) {
 		return nil, fmt.Errorf("invalid task id %q", t.ID)
 	}
 
-	if readme, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "README.md")); err == nil {
+	if readme, err := root.ReadFile(path.Join(dirName, "README.md")); err == nil {
 		t.Readme = string(readme)
 	}
 
@@ -149,8 +157,8 @@ func normalize(t *models.Task) {
 	}
 }
 
-// summarize returns the first plain paragraph line of a markdown document, truncated to max runes.
-func summarize(markdown string, max int) string {
+// summarize returns the first plain paragraph line of a markdown document, truncated to maxRunes.
+func summarize(markdown string, maxRunes int) string {
 	for _, line := range strings.Split(markdown, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "```") ||
@@ -158,8 +166,8 @@ func summarize(markdown string, max int) string {
 			continue
 		}
 		r := []rune(line)
-		if len(r) > max {
-			return string(r[:max-1]) + "…"
+		if len(r) > maxRunes {
+			return string(r[:maxRunes-1]) + "…"
 		}
 		return line
 	}

@@ -17,9 +17,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Version is reported by /healthz.
-const Version = "2.1.0"
-
 // LabManager is the subset of *session.Manager used by the handlers.
 type LabManager interface {
 	CreateSession(ctx context.Context, userID uint, taskID string) (*models.SessionResponse, error)
@@ -31,15 +28,30 @@ type LabManager interface {
 	ResourceStats(ctx context.Context) (*models.ResourceStats, error)
 }
 
+// Options are the process-wide settings the handlers need besides the lab manager.
+type Options struct {
+	// Version is the build version reported by /healthz (main.version, set via -ldflags).
+	Version string
+	// DefaultImage is the lab image used for tasks that do not name their own image.
+	DefaultImage string
+}
+
 var (
 	sessionManager LabManager
 	startTime      = time.Now()
+	appVersion     = "dev"
+	defaultImage   string
 )
 
-// Init wires the lab session manager into the handlers.
-func Init(sm LabManager) {
+// Init wires the lab session manager and process settings into the handlers.
+func Init(sm LabManager, opts Options) {
 	sessionManager = sm
 	startTime = time.Now()
+	appVersion = opts.Version
+	if appVersion == "" {
+		appVersion = "dev"
+	}
+	defaultImage = opts.DefaultImage
 }
 
 var (
@@ -87,15 +99,15 @@ func isAdmin(c *gin.Context) bool {
 	return c.GetString("role") == models.RoleAdmin
 }
 
-// parseLimit parses an optional ?limit query parameter, validating min..max.
-func parseLimit(c *gin.Context, def, min, max int) (int, bool) {
+// parseLimit parses an optional ?limit query parameter, validating lo..hi.
+func parseLimit(c *gin.Context, def, lo, hi int) (int, bool) {
 	raw := c.Query("limit")
 	if raw == "" {
 		return def, true
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil || n < min || n > max {
-		respondError(c, http.StatusBadRequest, "Invalid limit", "limit must be between "+strconv.Itoa(min)+" and "+strconv.Itoa(max))
+	if err != nil || n < lo || n > hi {
+		respondError(c, http.StatusBadRequest, "Invalid limit", "limit must be between "+strconv.Itoa(lo)+" and "+strconv.Itoa(hi))
 		return 0, false
 	}
 	return n, true

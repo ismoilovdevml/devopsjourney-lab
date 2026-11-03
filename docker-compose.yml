@@ -196,6 +196,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8088}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # Login/register requests per client IP per minute (1..10000). Raise only for automated tests.
+      AUTH_RATE_LIMIT_PER_MIN: ${AUTH_RATE_LIMIT_PER_MIN:-10}
 
       SEED_ADMIN: ${SEED_ADMIN:-true}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -247,6 +249,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # The entrypoint renders /etc/nginx/templates/*.template here (uid 101 = nginx).
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+    environment:
+      # Login/register rate limit per client IP. Raise only for automated tests.
+      NGINX_AUTH_RATE: ${NGINX_AUTH_RATE:-10r/m}
+      NGINX_AUTH_BURST: ${NGINX_AUTH_BURST:-20}
     ports:
       - "${HTTP_PORT:-8088}:8080"
     networks: [public, edge]

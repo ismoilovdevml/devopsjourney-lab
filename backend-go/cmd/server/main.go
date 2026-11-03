@@ -14,6 +14,7 @@ import (
 	"github.com/devops-lab/backend/internal/auth"
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/devops-lab/backend/internal/docker"
+	"github.com/devops-lab/backend/internal/middleware"
 	"github.com/devops-lab/backend/internal/session"
 	"github.com/devops-lab/backend/internal/task"
 	"github.com/devops-lab/backend/internal/websocket"
@@ -22,9 +23,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// version is the build version reported by /healthz. Set at build time with
+// -ldflags "-X main.version=<version>" (see Dockerfile and Makefile).
+var version = "dev"
+
 const (
 	shutdownDrain   = 15 * time.Second
 	sessionShutdown = 10 * time.Second
+	// sessionReapInterval is how often expired sessions and orphaned lab containers are swept.
+	sessionReapInterval = 5 * time.Minute
 )
 
 func main() {
@@ -40,7 +47,7 @@ func main() {
 	}
 	auth.SetCookieSecure(cfg.Security.CookieSecure)
 
-	log.Info().Str("env", cfg.Server.Environment).Msg("Starting DevOps Journey Lab backend")
+	log.Info().Str("env", cfg.Server.Environment).Str("version", version).Msg("Starting DevOps Journey Lab backend")
 
 	if err := docker.InitClient(cfg.Docker.Host); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize Docker client")
@@ -62,7 +69,11 @@ func main() {
 	if err := database.ConnectRedis(&cfg.Redis); err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to Redis")
 	}
-	defer database.CloseRedis()
+	defer func() {
+		if err := database.CloseRedis(); err != nil {
+			log.Error().Err(err).Msg("Failed to close Redis client")
+		}
+	}()
 
 	if err := database.OptimizeConnectionPool(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to optimize connection pool")
@@ -73,20 +84,21 @@ func main() {
 	}
 
 	websocket.InitUpgrader(cfg.CORS.Origins)
+	middleware.SetAuthRateLimit(cfg.Security.AuthRateLimitPerMin)
+	if cfg.Security.AuthRateLimitPerMin != configs.DefaultAuthRateLimitPerMin {
+		log.Warn().Int("per_minute", cfg.Security.AuthRateLimitPerMin).
+			Msg("AUTH_RATE_LIMIT_PER_MIN differs from the production default")
+	}
 
 	sessionManager := session.NewManager(&cfg.Docker)
-	// The expiry reaper API is owned by the session package; start it if the manager provides one.
-	if reaper, ok := any(sessionManager).(interface{ StartPeriodicCleanup(time.Duration) }); ok {
-		reaper.StartPeriodicCleanup(5 * time.Minute)
-	} else {
-		log.Warn().Msg("session manager has no StartPeriodicCleanup; relying on per-session expiry timers")
-	}
+	// Reconciles DB sessions with lab containers now (crash recovery) and every interval.
+	sessionManager.StartPeriodicCleanup(sessionReapInterval)
 
 	poolMonitor := database.NewPoolMonitor(30 * time.Second)
 	poolMonitor.Start()
 	defer poolMonitor.Stop()
 
-	api.Init(sessionManager)
+	api.Init(sessionManager, api.Options{Version: version, DefaultImage: cfg.Docker.DefaultImage})
 
 	if cfg.Server.GinMode == "release" {
 		gin.SetMode(gin.ReleaseMode)

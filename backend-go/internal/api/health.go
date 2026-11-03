@@ -50,11 +50,7 @@ func pingRedis(ctx context.Context) error {
 }
 
 func pingDocker(ctx context.Context) error {
-	if docker.Client == nil {
-		return errors.New("not initialized")
-	}
-	_, err := docker.Client.Ping(ctx)
-	return err
+	return docker.Ping(ctx)
 }
 
 // HealthCheck is the liveness probe: GET /healthz.
@@ -62,7 +58,7 @@ func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, models.HealthResponse{
 		Status:    "ok",
 		Timestamp: time.Now().UTC(),
-		Version:   Version,
+		Version:   appVersion,
 		Uptime:    time.Since(startTime).Round(time.Second).String(),
 	})
 }

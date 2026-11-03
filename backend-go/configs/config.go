@@ -23,6 +23,13 @@ const maxJWTExpiration = 7 * 24 * time.Hour
 // defaultTrustedProxies are loopback and RFC1918 ranges (docker bridge networks, local reverse proxy).
 const defaultTrustedProxies = "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
+// Bounds and default for AUTH_RATE_LIMIT_PER_MIN (login/register requests per client IP per minute).
+const (
+	DefaultAuthRateLimitPerMin = 10
+	minAuthRateLimitPerMin     = 1
+	maxAuthRateLimitPerMin     = 10000
+)
+
 // knownJWTPlaceholders are values shipped in examples/compose files; they must never be used in production.
 var knownJWTPlaceholders = []string{
 	"change-me-in-production",
@@ -38,6 +45,7 @@ var knownJWTPlaceholders = []string{
 // knownDBPasswords are default database passwords that must never be used in production.
 var knownDBPasswords = []string{"devopslab_secret", "postgres", "password"}
 
+// Config is the complete runtime configuration, loaded from the environment.
 type Config struct {
 	Server     ServerConfig
 	Docker     DockerConfig
@@ -49,12 +57,14 @@ type Config struct {
 	Security   SecurityConfig
 }
 
+// ServerConfig holds HTTP server settings.
 type ServerConfig struct {
 	Port        string
 	GinMode     string
 	Environment string
 }
 
+// DockerConfig holds Docker daemon access and lab container settings.
 type DockerConfig struct {
 	// Host is the Docker daemon address. DOCKER_HOST wins; otherwise "unix://" + Socket.
 	Host             string
@@ -68,6 +78,7 @@ type DockerConfig struct {
 	MaxSessionsTotal int
 }
 
+// DatabaseConfig holds PostgreSQL connection settings.
 type DatabaseConfig struct {
 	Host     string
 	Port     string
@@ -77,6 +88,7 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+// RedisConfig holds Redis connection settings.
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -84,6 +96,7 @@ type RedisConfig struct {
 	DB       int
 }
 
+// JWTConfig holds token signing settings.
 type JWTConfig struct {
 	Secret     string
 	Expiration time.Duration
@@ -91,20 +104,26 @@ type JWTConfig struct {
 	Generated bool
 }
 
+// CORSConfig holds the browser origins allowed to call the API.
 type CORSConfig struct {
 	Origins []string
 }
 
+// MonitoringConfig holds metrics settings.
 type MonitoringConfig struct {
 	PrometheusEnabled bool
 	PrometheusPort    string
 }
 
+// SecurityConfig holds cookie and proxy trust settings.
 type SecurityConfig struct {
 	// CookieSecure sets the Secure flag on the auth cookie (COOKIE_SECURE, default true).
 	CookieSecure bool
 	// TrustedProxies are CIDRs/IPs whose X-Forwarded-For is honoured (TRUSTED_PROXIES).
 	TrustedProxies []string
+	// AuthRateLimitPerMin caps login/register requests per client IP per minute
+	// (AUTH_RATE_LIMIT_PER_MIN, default 10, clamped to 1..10000). Raise only for automated tests.
+	AuthRateLimitPerMin int
 }
 
 // IsProduction reports whether ENVIRONMENT=production.
@@ -191,6 +210,8 @@ func Load() *Config {
 		Security: SecurityConfig{
 			CookieSecure:   getEnvBool("COOKIE_SECURE", true),
 			TrustedProxies: splitList(getEnv("TRUSTED_PROXIES", defaultTrustedProxies)),
+			AuthRateLimitPerMin: clampInt(getEnvInt("AUTH_RATE_LIMIT_PER_MIN", DefaultAuthRateLimitPerMin),
+				minAuthRateLimitPerMin, maxAuthRateLimitPerMin),
 		},
 	}
 }
@@ -309,6 +330,10 @@ func getEnvBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+func clampInt(v, lo, hi int) int {
+	return min(max(v, lo), hi)
 }
 
 func splitList(s string) []string {

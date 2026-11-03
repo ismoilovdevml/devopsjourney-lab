@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 )
 
@@ -43,10 +43,10 @@ func ExecCommand(ctx context.Context, containerID, command string, timeout time.
 	execCtx, cancel := context.WithTimeout(ctx, timeout+5*time.Second)
 	defer cancel()
 
-	execID, err := Client.ContainerExecCreate(execCtx, containerID, container.ExecOptions{
+	execID, err := Client.ExecCreate(execCtx, containerID, client.ExecCreateOptions{
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          false,
+		TTY:          false,
 		WorkingDir:   "/root",
 		Cmd:          wrapWithTimeout(command, secs),
 	})
@@ -54,7 +54,7 @@ func ExecCommand(ctx context.Context, containerID, command string, timeout time.
 		return &ExecResult{ExitCode: -1, Error: fmt.Errorf("exec create: %w", err)}
 	}
 
-	resp, err := Client.ContainerExecAttach(execCtx, execID.ID, container.ExecStartOptions{Tty: false})
+	resp, err := Client.ExecAttach(execCtx, execID.ID, client.ExecAttachOptions{TTY: false})
 	if err != nil {
 		return &ExecResult{ExitCode: -1, Error: fmt.Errorf("exec attach: %w", err)}
 	}
@@ -73,7 +73,7 @@ func ExecCommand(ctx context.Context, containerID, command string, timeout time.
 		return &ExecResult{ExitCode: -1, Output: out.String(), Error: fmt.Errorf("exec read: %w", err)}
 	}
 
-	inspect, err := Client.ContainerExecInspect(execCtx, execID.ID)
+	inspect, err := Client.ExecInspect(execCtx, execID.ID, client.ExecInspectOptions{})
 	if err != nil {
 		return &ExecResult{ExitCode: -1, Output: out.String(), Error: fmt.Errorf("exec inspect: %w", err)}
 	}

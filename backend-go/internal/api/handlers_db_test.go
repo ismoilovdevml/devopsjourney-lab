@@ -21,8 +21,10 @@ import (
 	"github.com/devops-lab/backend/internal/auth"
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/devops-lab/backend/internal/models"
+	"github.com/devops-lab/backend/internal/session"
 	"github.com/devops-lab/backend/internal/task"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // These tests need Postgres. Configure with DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME
@@ -66,7 +68,11 @@ func (f *fakeLab) CreateSession(ctx context.Context, userID uint, taskID string)
 
 func (f *fakeLab) GetSession(ctx context.Context, id string) (*models.Session, error) {
 	var s models.Session
-	if err := database.DB.Where("id = ? AND status = ?", id, models.SessionActive).Take(&s).Error; err != nil {
+	err := database.DB.Where("id = ? AND status = ?", id, models.SessionActive).Take(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, session.ErrSessionNotFound // same contract as session.Manager
+	}
+	if err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -76,7 +82,7 @@ func (f *fakeLab) DeleteSession(ctx context.Context, id string) error {
 	res := database.DB.Model(&models.Session{}).Where("id = ? AND status = ?", id, models.SessionActive).
 		Updates(map[string]any{"status": models.SessionStopped, "ended_at": time.Now().UTC()})
 	if res.RowsAffected == 0 {
-		return errors.New("not found")
+		return session.ErrSessionNotFound
 	}
 	return res.Error
 }
@@ -181,7 +187,7 @@ func setupDB(t *testing.T) *testEnv {
 	}
 	gin.SetMode(gin.TestMode)
 	lab := &fakeLab{}
-	Init(lab)
+	Init(lab, Options{Version: "test-version", DefaultImage: "devopslab-lab:test"})
 	r := gin.New()
 	SetupRoutes(r, []string{testOrigin})
 	return &testEnv{t: t, router: r, lab: lab}
@@ -329,7 +335,24 @@ func TestHandlersWithPostgres(t *testing.T) {
 
 		e.expect(e.do("POST", "/api/me/password", map[string]string{"current_password": "nope-nope", "new_password": "An0ther-pass"}, alice), 401, "wrong current")
 		e.expect(e.do("POST", "/api/me/password", map[string]string{"current_password": pw, "new_password": "short"}, alice), 400, "weak new")
-		e.expect(e.do("POST", "/api/me/password", map[string]string{"current_password": pw, "new_password": "An0ther-pass"}, alice), 204, "change password")
+		// Cross a second boundary so the old token's iat is strictly before the change.
+		time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+		oldAlice := alice
+		otherDevice := authCookie(t, e.do("POST", "/api/auth/login", map[string]string{"username": "alice", "password": pw}, nil))
+		time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+		cp := e.do("POST", "/api/me/password", map[string]string{"current_password": pw, "new_password": "An0ther-pass"}, alice)
+		e.expect(cp, 204, "change password")
+		// The client that changed the password gets a fresh cookie and stays signed in ...
+		alice = authCookie(t, cp)
+		e.expect(e.do("GET", "/api/me", nil, alice), 200, "re-issued cookie works")
+		// ... while every token issued before the change is revoked.
+		e.expect(e.do("GET", "/api/me", nil, oldAlice), 401, "old cookie revoked")
+		e.expect(e.do("GET", "/api/me", nil, otherDevice), 401, "other device revoked")
+		var stored models.User
+		database.DB.Take(&stored, aliceUser.ID)
+		if stored.PasswordChangedAt == nil {
+			t.Fatal("password_changed_at not set")
+		}
 		e.expect(e.do("POST", "/api/auth/login", map[string]string{"username": "alice", "password": "An0ther-pass"}, nil), 200, "login new password")
 		e.expect(e.do("POST", "/api/auth/login", map[string]string{"username": "alice", "password": pw}, nil), 401, "old password rejected")
 	})
@@ -358,6 +381,9 @@ func TestHandlersWithPostgres(t *testing.T) {
 		e.expect(d, 200, "task detail")
 		if strings.Contains(string(d.body), "SECRET") || !strings.Contains(string(d.body), `"readme":"# t-two`) {
 			t.Fatalf("detail: %s", d.body)
+		}
+		if !strings.Contains(string(d.body), `"image":"devopslab-lab:test"`) {
+			t.Fatalf("detail must fall back to the configured default image: %s", d.body)
 		}
 		e.expect(e.do("GET", "/api/tasks/NOPE..", nil, nil), 400, "bad task id")
 		e.expect(e.do("GET", "/api/tasks/missing", nil, nil), 404, "missing task")
@@ -602,7 +628,11 @@ func TestHandlersWithPostgres(t *testing.T) {
 		big := `{"github":"` + strings.Repeat("a", MaxBodyBytes+10) + `"}`
 		e.expect(e.do("PUT", "/api/me", big, carol), 413, "body too large")
 
-		e.expect(e.do("GET", "/healthz", nil, nil), 200, "healthz")
+		hz := e.do("GET", "/healthz", nil, nil)
+		e.expect(hz, 200, "healthz")
+		if !strings.Contains(string(hz.body), `"version":"test-version"`) {
+			t.Fatalf("healthz must report the build version: %s", hz.body)
+		}
 		SetReadyChecks([]ReadyCheck{{Name: "database", Check: pingDatabase}})
 		e.expect(e.do("GET", "/readyz", nil, nil), 200, "readyz ok")
 		SetReadyChecks([]ReadyCheck{{Name: "docker", Check: func(context.Context) error { return errors.New("down") }}})

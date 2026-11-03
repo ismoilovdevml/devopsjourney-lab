@@ -10,11 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	cerrdefs "github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 )
 
@@ -30,19 +28,20 @@ var Client *client.Client
 // the socket path. DOCKER_API_VERSION / DOCKER_CERT_PATH / DOCKER_TLS_VERIFY
 // are honoured through client.FromEnv.
 func InitClient(host string) error {
-	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
+	// API-version negotiation is the client default (moby/moby/client >= v0.1).
+	opts := []client.Opt{client.FromEnv}
 	if h := resolveHost(host, os.Getenv("DOCKER_HOST")); h != "" {
 		opts = append(opts, client.WithHost(h))
 	}
 
-	c, err := client.NewClientWithOpts(opts...)
+	c, err := client.New(opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := c.Ping(ctx); err != nil {
+	if _, err := c.Ping(ctx, client.PingOptions{}); err != nil {
 		_ = c.Close()
 		return fmt.Errorf("failed to ping Docker daemon at %s: %w", c.DaemonHost(), err)
 	}
@@ -72,7 +71,7 @@ func Ping(ctx context.Context) error {
 	if Client == nil {
 		return fmt.Errorf("docker client not initialized")
 	}
-	_, err := Client.Ping(ctx)
+	_, err := Client.Ping(ctx, client.PingOptions{})
 	return err
 }
 
@@ -80,12 +79,12 @@ func Ping(ctx context.Context) error {
 // Locally built images (e.g. devopslab-lab:latest) are never pulled when they
 // already exist.
 func EnsureImage(ctx context.Context, imageName string) error {
-	if _, _, err := Client.ImageInspectWithRaw(ctx, imageName); err == nil {
+	if _, err := Client.ImageInspect(ctx, imageName); err == nil {
 		return nil
 	}
 
 	log.Info().Str("image", imageName).Msg("Pulling image...")
-	reader, err := Client.ImagePull(ctx, imageName, image.PullOptions{})
+	reader, err := Client.ImagePull(ctx, imageName, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("image %s not found locally and pull failed: %w", imageName, err)
 	}
@@ -192,7 +191,7 @@ func BuildHostConfig(cfg *ContainerConfig) (*container.HostConfig, error) {
 		RestartPolicy:  container.RestartPolicy{Name: container.RestartPolicyDisabled},
 	}
 	if cfg.MemoryLimit <= 0 {
-		hc.Resources.MemorySwap = 0
+		hc.MemorySwap = 0
 	}
 	return hc, nil
 }
@@ -204,7 +203,10 @@ func CreateContainer(ctx context.Context, cfg *ContainerConfig) (string, error) 
 		return "", err
 	}
 
-	resp, err := Client.ContainerCreate(ctx, BuildContainerConfig(cfg), hostConfig, nil, nil, "")
+	resp, err := Client.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:     BuildContainerConfig(cfg),
+		HostConfig: hostConfig,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -215,7 +217,7 @@ func CreateContainer(ctx context.Context, cfg *ContainerConfig) (string, error) 
 
 // StartContainer starts a container.
 func StartContainer(ctx context.Context, containerID string) error {
-	if err := Client.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
+	if _, err := Client.ContainerStart(ctx, containerID, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 	log.Debug().Str("container_id", shortID(containerID)).Msg("Container started")
@@ -225,7 +227,7 @@ func StartContainer(ctx context.Context, containerID string) error {
 // StopContainer stops a container.
 func StopContainer(ctx context.Context, containerID string, timeout int) error {
 	stopTimeout := timeout
-	if err := Client.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &stopTimeout}); err != nil {
+	if _, err := Client.ContainerStop(ctx, containerID, client.ContainerStopOptions{Timeout: &stopTimeout}); err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)
 	}
 	log.Debug().Str("container_id", shortID(containerID)).Msg("Container stopped")
@@ -235,8 +237,8 @@ func StopContainer(ctx context.Context, containerID string, timeout int) error {
 // RemoveContainer force-removes a container. A container that no longer exists
 // is not an error.
 func RemoveContainer(ctx context.Context, containerID string) error {
-	err := Client.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: true})
-	if err != nil && !client.IsErrNotFound(err) {
+	_, err := Client.ContainerRemove(ctx, containerID, client.ContainerRemoveOptions{Force: true})
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return fmt.Errorf("failed to remove container: %w", err)
 	}
 	log.Debug().Str("container_id", shortID(containerID)).Msg("Container removed")
@@ -244,33 +246,33 @@ func RemoveContainer(ctx context.Context, containerID string) error {
 }
 
 // InspectContainer gets container info.
-func InspectContainer(ctx context.Context, containerID string) (*types.ContainerJSON, error) {
-	info, err := Client.ContainerInspect(ctx, containerID)
+func InspectContainer(ctx context.Context, containerID string) (*container.InspectResponse, error) {
+	res, err := Client.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container: %w", err)
 	}
-	return &info, nil
+	return &res.Container, nil
 }
 
 // ListLabContainers returns every container (running or not) that carries the
 // devopslab.session label, oldest first.
 func ListLabContainers(ctx context.Context) ([]LabContainer, error) {
-	list, err := Client.ContainerList(ctx, container.ListOptions{
+	list, err := Client.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", LabelSession)),
+		Filters: make(client.Filters).Add("label", LabelSession),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list lab containers: %w", err)
 	}
 
-	out := make([]LabContainer, 0, len(list))
-	for _, c := range list {
+	out := make([]LabContainer, 0, len(list.Items))
+	for _, c := range list.Items {
 		out = append(out, LabContainer{
 			ID:        c.ID,
 			SessionID: c.Labels[LabelSession],
 			UserID:    c.Labels[LabelUser],
 			TaskID:    c.Labels[LabelTask],
-			State:     c.State,
+			State:     string(c.State),
 			Created:   time.Unix(c.Created, 0),
 		})
 	}
@@ -289,7 +291,10 @@ type ContainerUsage struct {
 // non-streaming stats call, which makes the daemon collect two samples about a
 // second apart so the CPU percentage is meaningful.
 func ContainerStats(ctx context.Context, containerID string) (*ContainerUsage, error) {
-	resp, err := Client.ContainerStats(ctx, containerID, false)
+	resp, err := Client.ContainerStats(ctx, containerID, client.ContainerStatsOptions{
+		Stream:                false,
+		IncludePreviousSample: true, // PreCPUStats is needed for the CPU delta
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats: %w", err)
 	}
@@ -332,7 +337,8 @@ func ResizeExec(ctx context.Context, execID string, cols, rows uint) error {
 	if cols == 0 || rows == 0 {
 		return fmt.Errorf("invalid terminal size %dx%d", cols, rows)
 	}
-	return Client.ContainerExecResize(ctx, execID, container.ResizeOptions{Width: cols, Height: rows})
+	_, err := Client.ExecResize(ctx, execID, client.ExecResizeOptions{Width: cols, Height: rows})
+	return err
 }
 
 // Close closes the Docker client.

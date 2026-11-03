@@ -153,6 +153,62 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 }
 
+func TestTokenRevoked(t *testing.T) {
+	changed := time.Date(2026, 1, 2, 3, 4, 5, 600_000_000, time.UTC)
+	cases := []struct {
+		name string
+		iat  time.Time
+		pca  *time.Time
+		want bool
+	}{
+		{"never changed", changed.Add(-time.Hour), nil, false},
+		{"issued earlier", changed.Add(-2 * time.Second), &changed, true},
+		{"issued one second before", changed.Truncate(time.Second).Add(-time.Second), &changed, true},
+		// iat has second precision: a token minted in the same second (the re-issued cookie) is valid.
+		{"same second", changed.Truncate(time.Second), &changed, false},
+		{"issued later", changed.Add(time.Minute), &changed, false},
+	}
+	for _, tc := range cases {
+		if got := tokenRevoked(tc.iat, tc.pca); got != tc.want {
+			t.Errorf("%s: tokenRevoked = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestAuthMiddlewareRejectsTokensIssuedBeforePasswordChange(t *testing.T) {
+	future := time.Now().Add(5 * time.Second)
+	past := time.Now().Add(-5 * time.Second)
+	stubUsers(t, map[uint]*UserState{
+		1: {ID: 1, Username: "alice", Role: "student", Active: true, PasswordChangedAt: &future},
+		2: {ID: 2, Username: "bob", Role: "student", Active: true, PasswordChangedAt: &past},
+	}, nil)
+	r := authRouter(AuthMiddleware())
+
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tokenFor(t, 1, "student")})
+	if w := do(r, req); w.Code != http.StatusUnauthorized {
+		t.Fatalf("token issued before password change: got %d %s", w.Code, w.Body)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tokenFor(t, 2, "student")})
+	if w := do(r, req); w.Code != http.StatusOK {
+		t.Fatalf("token issued after password change: got %d %s", w.Code, w.Body)
+	}
+
+	// The cached state carries PasswordChangedAt, so a cache hit must still reject.
+	req = httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tokenFor(t, 1, "student")})
+	if _, status, err := Authenticate(ginContext(req)); !errors.Is(err, ErrTokenRevoked) || status != http.StatusUnauthorized {
+		t.Fatalf("Authenticate (cached) = %d, %v; want 401, ErrTokenRevoked", status, err)
+	}
+}
+
+func ginContext(req *http.Request) *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = req
+	return c
+}
+
 func TestAuthMiddlewareDBErrorFailsClosed(t *testing.T) {
 	stubUsers(t, nil, errors.New("db down"))
 	r := authRouter(AuthMiddleware())
@@ -435,5 +491,36 @@ func TestClientIPNotSpoofableWithoutTrustedProxy(t *testing.T) {
 		if i == 10 && w.Code != http.StatusTooManyRequests {
 			t.Fatalf("rotating X-Forwarded-For bypassed the limiter: %d", w.Code)
 		}
+	}
+}
+
+func TestAuthRateLimiterConfigurable(t *testing.T) {
+	fallbackLimiter.reset()
+	t.Cleanup(func() { fallbackLimiter.reset(); SetAuthRateLimit(DefaultAuthRateLimit) })
+
+	SetAuthRateLimit(3)
+	r := gin.New()
+	r.POST("/login", AuthRateLimiter(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	send := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = "198.51.100.9:1234"
+		return do(r, req)
+	}
+	for i := 0; i < 3; i++ {
+		if w := send(); w.Code != http.StatusOK || w.Header().Get("X-RateLimit-Limit") != "3" {
+			t.Fatalf("request %d: %d limit=%q", i, w.Code, w.Header().Get("X-RateLimit-Limit"))
+		}
+	}
+	if w := send(); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("4th request: %d, want 429", w.Code)
+	}
+
+	SetAuthRateLimit(0) // clamped to 1
+	if got := authRateLimit.Load(); got != 1 {
+		t.Fatalf("clamp low: %d", got)
+	}
+	SetAuthRateLimit(1 << 30) // clamped to 10000
+	if got := authRateLimit.Load(); got != 10000 {
+		t.Fatalf("clamp high: %d", got)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// DB is the shared GORM handle, set by Connect.
 var DB *gorm.DB
 
 // Connect establishes database connection

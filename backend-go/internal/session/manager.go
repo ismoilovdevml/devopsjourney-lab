@@ -581,8 +581,8 @@ func countLive(containers []docker.LabContainer) int {
 }
 
 // hasCapacity reports whether one more container fits under the cap.
-func hasCapacity(live, max int) bool {
-	return max > 0 && live < max
+func hasCapacity(live, limit int) bool {
+	return limit > 0 && live < limit
 }
 
 func resolveImage(taskImage, defaultImage string) string {

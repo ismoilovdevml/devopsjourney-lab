@@ -11,6 +11,7 @@ import (
 	"github.com/devops-lab/backend/internal/database"
 	"github.com/devops-lab/backend/internal/middleware"
 	"github.com/devops-lab/backend/internal/models"
+	"github.com/devops-lab/backend/internal/session"
 	"github.com/devops-lab/backend/internal/task"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -301,6 +302,10 @@ func TerminateSession(c *gin.Context) {
 		return
 	}
 	s, err := sessionManager.GetSession(c.Request.Context(), id)
+	if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+		labError(c, err, "failed to load session")
+		return
+	}
 	if err != nil || s == nil {
 		respondError(c, http.StatusNotFound, "Session not found", "")
 		return

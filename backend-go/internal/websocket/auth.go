@@ -114,8 +114,8 @@ type connLimiter struct {
 	max    int
 }
 
-func newConnLimiter(max int) *connLimiter {
-	return &connLimiter{counts: make(map[uint]int), max: max}
+func newConnLimiter(limit int) *connLimiter {
+	return &connLimiter{counts: make(map[uint]int), max: limit}
 }
 
 func (l *connLimiter) acquire(userID uint) bool {

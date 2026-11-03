@@ -105,9 +105,13 @@ func buildDetail(t models.Task, unlocked bool, st taskState) models.TaskDetail {
 	if hints == nil {
 		hints = []string{}
 	}
+	image := t.Image
+	if image == "" {
+		image = defaultImage
+	}
 	return models.TaskDetail{
 		TaskSummary: summarize(t, unlocked, st),
-		Image:       t.Image,
+		Image:       image,
 		Readme:      t.Readme,
 		Hints:       hints,
 		Checks:      checks,

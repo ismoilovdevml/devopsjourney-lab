@@ -1,0 +1,76 @@
+# golangci-lint v2 configuration (CI pins golangci-lint v2.15).
+# Run locally from backend-go/: golangci-lint run ./...
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gosec
+    - bodyclose
+    - misspell
+    - revive
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        # Struct field ordering for padding is noise for this codebase.
+        - fieldalignment
+        # Shadowing `err` in nested scopes is idiomatic Go.
+        - shadow
+    errcheck:
+      check-type-assertions: true
+    gosec:
+      excludes:
+        # G104 (unhandled errors) duplicates errcheck.
+        - G104
+    # misspell runs without a locale: British spellings in comments (labelled, honoured) are fine.
+    revive:
+      # Minimal rule set: exported API docs and obvious style issues only.
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: package-comments
+          disabled: true
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: errorf
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      # Test helpers may ignore errors of best-effort cleanup and use fixed test secrets.
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true

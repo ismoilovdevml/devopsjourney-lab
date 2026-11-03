@@ -105,10 +105,10 @@ func resolveAdminPassword(configured, username string) (password string, generat
 }
 
 func generatePassword(n int) (string, error) {
-	max := big.NewInt(int64(len(passwordAlphabet)))
+	alphabetLen := big.NewInt(int64(len(passwordAlphabet)))
 	b := make([]byte, n)
 	for i := range b {
-		idx, err := rand.Int(rand.Reader, max)
+		idx, err := rand.Int(rand.Reader, alphabetLen)
 		if err != nil {
 			return "", fmt.Errorf("generate password: %w", err)
 		}

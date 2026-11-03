@@ -13,10 +13,9 @@ import (
 	"time"
 
 	"github.com/devops-lab/backend/internal/docker"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog/log"
 )
 
@@ -48,7 +47,7 @@ func InitUpgrader(allowedOrigins []string) {
 // terminal is one live socket <-> docker exec bridge.
 type terminal struct {
 	conn      *websocket.Conn
-	hijack    types.HijackedResponse
+	hijack    client.HijackedResponse
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 }
@@ -159,11 +158,11 @@ func Handler(c *gin.Context) {
 	// argv[0] marker lets us find and SIGHUP this shell if the socket goes away first
 	// (Docker has no API to kill an exec).
 	marker := "dj-term-" + randomHex(8)
-	created, err := docker.Client.ContainerExecCreate(ctx, sess.ContainerID, container.ExecOptions{
+	created, err := docker.Client.ExecCreate(ctx, sess.ContainerID, client.ExecCreateOptions{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          true,
+		TTY:          true,
 		Env:          []string{"TERM=xterm-256color"},
 		Cmd:          []string{"bash", "-c", "exec -a " + marker + " bash -l"},
 	})
@@ -172,12 +171,13 @@ func Handler(c *gin.Context) {
 		failAndClose(conn, "failed to start terminal")
 		return
 	}
-	hijack, err := docker.Client.ContainerExecAttach(ctx, created.ID, container.ExecStartOptions{Tty: true})
+	attached, err := docker.Client.ExecAttach(ctx, created.ID, client.ExecAttachOptions{TTY: true})
 	if err != nil {
 		logger.Error().Err(err).Msg("ws: exec attach failed")
 		failAndClose(conn, "failed to attach terminal")
 		return
 	}
+	hijack := attached.HijackedResponse
 
 	t := &terminal{conn: conn, hijack: hijack, cancel: cancel}
 	register(t)
@@ -286,7 +286,7 @@ func Handler(c *gin.Context) {
 func killExec(containerID, execID, marker string) {
 	ctx, cancel := context.WithTimeout(context.Background(), killExecWait)
 	defer cancel()
-	if info, err := docker.Client.ContainerExecInspect(ctx, execID); err == nil && !info.Running {
+	if info, err := docker.Client.ExecInspect(ctx, execID, client.ExecInspectOptions{}); err == nil && !info.Running {
 		return
 	}
 	script := `for p in /proc/[0-9]*; do case "$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null)" in "` +

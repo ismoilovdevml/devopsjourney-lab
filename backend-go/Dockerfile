@@ -10,7 +10,7 @@
 # If the binary gains a `healthcheck` subcommand, switch the runtime stage to
 # gcr.io/distroless/static-debian12:nonroot and drop wget.
 
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.27
 ARG ALPINE_VERSION=3.24
 
 FROM golang:${GO_VERSION}-alpine AS builder

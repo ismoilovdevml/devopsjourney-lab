@@ -11,17 +11,18 @@ const strongSecret = "9f2c7a41d0b84e6f8c3a5b7e1d2f4a6c8e0b1d3f5a7c9e2b"
 func setEnv(t *testing.T, overrides map[string]string) {
 	t.Helper()
 	base := map[string]string{
-		"ENVIRONMENT":        "production",
-		"JWT_SECRET":         strongSecret,
-		"DB_PASSWORD":        "s3cure-db-pass",
-		"CORS_ORIGINS":       "https://lab.example.com",
-		"GIN_MODE":           "",
-		"COOKIE_SECURE":      "",
-		"TRUSTED_PROXIES":    "",
-		"MAX_SESSIONS_TOTAL": "",
-		"DOCKER_HOST":        "",
-		"DOCKER_SOCKET":      "",
-		"JWT_EXPIRATION":     "",
+		"ENVIRONMENT":             "production",
+		"JWT_SECRET":              strongSecret,
+		"DB_PASSWORD":             "s3cure-db-pass",
+		"CORS_ORIGINS":            "https://lab.example.com",
+		"GIN_MODE":                "",
+		"COOKIE_SECURE":           "",
+		"TRUSTED_PROXIES":         "",
+		"MAX_SESSIONS_TOTAL":      "",
+		"DOCKER_HOST":             "",
+		"DOCKER_SOCKET":           "",
+		"JWT_EXPIRATION":          "",
+		"AUTH_RATE_LIMIT_PER_MIN": "",
 	}
 	for k, v := range overrides {
 		base[k] = v
@@ -127,5 +128,22 @@ func TestDockerHostAndLists(t *testing.T) {
 	}
 	if cfg.JWT.Expiration != maxJWTExpiration {
 		t.Errorf("JWT expiration not capped: %v", cfg.JWT.Expiration)
+	}
+}
+
+func TestAuthRateLimitPerMin(t *testing.T) {
+	cases := map[string]int{
+		"":        DefaultAuthRateLimitPerMin,
+		"garbage": DefaultAuthRateLimitPerMin,
+		"500":     500,
+		"0":       1,
+		"-5":      1,
+		"999999":  10000,
+	}
+	for raw, want := range cases {
+		setEnv(t, map[string]string{"AUTH_RATE_LIMIT_PER_MIN": raw})
+		if got := Load().Security.AuthRateLimitPerMin; got != want {
+			t.Errorf("AUTH_RATE_LIMIT_PER_MIN=%q: got %d, want %d", raw, got, want)
+		}
 	}
 }

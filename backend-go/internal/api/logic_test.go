@@ -105,7 +105,7 @@ func achievementMap(list []models.Achievement) map[string]models.Achievement {
 }
 
 func TestComputeAchievements(t *testing.T) {
-	ts := func(min int) time.Time { return day0.Add(time.Duration(min) * time.Minute) }
+	ts := func(minutes int) time.Time { return day0.Add(time.Duration(minutes) * time.Minute) }
 
 	t.Run("nothing done", func(t *testing.T) {
 		got := computeAchievements(achievementInput{TotalTasks: 6})

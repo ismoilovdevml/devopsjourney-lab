@@ -19,6 +19,7 @@ const (
 	MaxPasswordBytes = 72
 )
 
+// Password validation errors returned by ValidatePasswordStrength.
 var (
 	ErrPasswordTooShort   = fmt.Errorf("password must be at least %d characters", MinPasswordLength)
 	ErrPasswordTooLong    = fmt.Errorf("password must be at most %d bytes", MaxPasswordBytes)

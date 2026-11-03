@@ -40,8 +40,10 @@ type User struct {
 	Github       string         `gorm:"not null;default:''" json:"github"`
 	Goal         string         `gorm:"not null;default:''" json:"goal"`
 	LastActiveAt *time.Time     `gorm:"index" json:"last_active_at,omitempty"`
-	Sessions     []Session      `gorm:"foreignKey:UserID" json:"-"`
-	Progress     []Progress     `gorm:"foreignKey:UserID" json:"-"`
+	// PasswordChangedAt revokes every token issued before it (see middleware.Authenticate).
+	PasswordChangedAt *time.Time `json:"-"`
+	Sessions          []Session  `gorm:"foreignKey:UserID" json:"-"`
+	Progress          []Progress `gorm:"foreignKey:UserID" json:"-"`
 }
 
 // Session represents a lab container session.

@@ -19,7 +19,8 @@ func SetCookieSecure(secure bool) {
 
 // SetAuthCookie stores the JWT in an httpOnly, SameSite=Strict cookie.
 func SetAuthCookie(c *gin.Context, token string) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	// Secure is configurable (COOKIE_SECURE, default true) only for plain-http localhost.
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // G124: HttpOnly+SameSite=Strict are fixed; Secure is deliberately configurable
 		Name:     CookieName,
 		Value:    token,
 		Path:     "/",
@@ -32,7 +33,7 @@ func SetAuthCookie(c *gin.Context, token string) {
 
 // ClearAuthCookie expires the auth cookie.
 func ClearAuthCookie(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // G124: expiring cookie mirrors SetAuthCookie's attributes
 		Name:     CookieName,
 		Value:    "",
 		Path:     "/",

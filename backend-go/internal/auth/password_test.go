@@ -55,7 +55,7 @@ func TestValidatePasswordStrength(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got := ValidatePasswordStrength(tc.pw, tc.user)
-		if !errors.Is(got, tc.want) && !(got == nil && tc.want == nil) {
+		if !errors.Is(got, tc.want) { // errors.Is(nil, nil) is true
 			t.Errorf("ValidatePasswordStrength(%q,%q) = %v, want %v", tc.pw, tc.user, got, tc.want)
 		}
 	}

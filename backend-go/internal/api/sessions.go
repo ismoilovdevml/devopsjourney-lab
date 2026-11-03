@@ -63,6 +63,11 @@ func ownedSession(c *gin.Context, param string) (*models.Session, bool) {
 	}
 	userID, _, _, _ := currentUser(c)
 	s, err := sessionManager.GetSession(c.Request.Context(), id)
+	if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+		// Infrastructure failure (DB/Redis): do not disguise an outage as "not found".
+		labError(c, err, "failed to load session")
+		return nil, false
+	}
 	if err != nil || s == nil || s.UserID != userID {
 		respondError(c, http.StatusNotFound, "Session not found", "")
 		return nil, false
@@ -249,14 +254,8 @@ func recordAttempt(ctx context.Context, s *models.Session, result *models.CheckR
 	return first, err
 }
 
-func clampDuration(d, min, max time.Duration) time.Duration {
-	if d < min {
-		return min
-	}
-	if d > max {
-		return max
-	}
-	return d
+func clampDuration(d, lo, hi time.Duration) time.Duration {
+	return min(max(d, lo), hi)
 }
 
 // mergeProgress applies one check result to a progress row: attempts++, best score,

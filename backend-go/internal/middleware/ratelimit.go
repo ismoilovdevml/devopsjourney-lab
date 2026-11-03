@@ -157,10 +157,25 @@ func limitHandler(limit int, keyFn func(*gin.Context) (string, bool), message st
 	}
 }
 
-// AuthRateLimiter limits login/register to 10 requests per minute per client IP (shared
-// bucket for both endpoints). Redis-backed, with a logged in-memory fallback.
+// DefaultAuthRateLimit is the production login/register budget per client IP per minute.
+const DefaultAuthRateLimit = 10
+
+// authRateLimit is the budget AuthRateLimiter uses; see SetAuthRateLimit.
+var authRateLimit atomic.Int64
+
+func init() { authRateLimit.Store(DefaultAuthRateLimit) }
+
+// SetAuthRateLimit sets the login/register budget per client IP per minute (clamped to
+// 1..10000). It applies to limiters created afterwards, so call it before SetupRoutes.
+func SetAuthRateLimit(perMinute int) {
+	authRateLimit.Store(int64(min(max(perMinute, 1), 10000)))
+}
+
+// AuthRateLimiter limits login/register to the configured number of requests per minute per
+// client IP (default 10; shared bucket for both endpoints). Redis-backed, with a logged
+// in-memory fallback.
 func AuthRateLimiter() gin.HandlerFunc {
-	return limitHandler(10, func(c *gin.Context) (string, bool) {
+	return limitHandler(int(authRateLimit.Load()), func(c *gin.Context) (string, bool) {
 		return "ratelimit:auth:ip:" + c.ClientIP(), true
 	}, "Too many authentication attempts. Please try again later.")
 }

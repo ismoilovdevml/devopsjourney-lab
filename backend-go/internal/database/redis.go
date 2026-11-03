@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// RedisClient is the shared Redis client, set by ConnectRedis.
 var RedisClient *redis.Client
 
 // ConnectRedis establishes the Redis connection with bounded timeouts.

@@ -3,7 +3,7 @@ package session
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/devops-lab/backend/internal/docker"
@@ -29,7 +29,13 @@ func loadTaskRuntime(tasksDir, taskID string) (*TaskRuntime, error) {
 	if !taskIDPattern.MatchString(taskID) {
 		return nil, fmt.Errorf("invalid task id %q", taskID)
 	}
-	data, err := os.ReadFile(filepath.Join(tasksDir, taskID, "task.yaml"))
+	// os.Root confines the read to tasksDir even if task.yaml is a symlink.
+	root, err := os.OpenRoot(tasksDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open tasks directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(path.Join(taskID, "task.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read task runtime config: %w", err)
 	}

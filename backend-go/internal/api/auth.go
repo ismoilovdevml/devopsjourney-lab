@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/devops-lab/backend/internal/auth"
@@ -283,11 +284,22 @@ func ChangePassword(c *gin.Context) {
 		internalError(c, err, "failed to hash password")
 		return
 	}
-	if err := database.DB.WithContext(c.Request.Context()).Model(user).UpdateColumn("password", hashed).Error; err != nil {
+	// Every token issued before this instant is rejected by middleware.Authenticate.
+	changedAt := nowUTC().Truncate(time.Microsecond) // Postgres precision: stored == compared
+	if err := database.DB.WithContext(c.Request.Context()).Model(user).UpdateColumns(map[string]any{
+		"password":            hashed,
+		"password_changed_at": changedAt,
+	}).Error; err != nil {
 		internalError(c, err, "failed to update password")
 		return
 	}
+	user.Password = hashed
+	user.PasswordChangedAt = &changedAt
 	middleware.InvalidateUserCache(user.ID)
 	logSelf(c, models.LevelInfo, "password_change", "Password changed")
+	// Other devices are signed out; keep this client signed in with a fresh token.
+	if !issueSession(c, user) {
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
