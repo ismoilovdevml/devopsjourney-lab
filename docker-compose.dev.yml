@@ -1,0 +1,26 @@
+# Local development override: publishes PostgreSQL and Redis on the loopback
+# interface only, so the backend can run on the host with `go run` and the
+# frontend with `npm run dev` (Vite proxies /api and /ws to localhost:8080).
+#
+#   make dev-deps
+#   # equivalent to:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait postgres redis
+#
+# Ports are configurable when 5432/6379 are taken: DEV_DB_PORT, DEV_REDIS_PORT.
+#
+# Never use this file on a shared or public host.
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${DEV_DB_PORT:-5432}:5432"
+    networks: [data, devhost]
+
+  redis:
+    ports:
+      - "127.0.0.1:${DEV_REDIS_PORT:-6379}:6379"
+    networks: [data, devhost]
+
+networks:
+  # `data` is internal (no host port publishing), so add a plain bridge.
+  devhost: {}

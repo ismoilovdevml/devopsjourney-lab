@@ -1,50 +1,40 @@
-.PHONY: build run test docker-build docker-run clean deps
+# Backend developer targets. Run from backend-go/.
+.PHONY: help build run test cover vet lint fmt deps docker-build clean
 
-# Build the application
-build:
-	go build -o bin/server ./cmd/server
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -X main.version=$(VERSION)
 
-# Run the application
-run:
-	go run ./cmd/server/main.go
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  %-13s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# Run tests
-test:
-	go test -v -cover ./...
+build: ## Build the server binary into bin/
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/server ./cmd/server
 
-# Install dependencies
-deps:
+run: ## Run the server (reads .env in this directory)
+	go run ./cmd/server
+
+test: ## Run tests with the race detector
+	go test -race -count=1 ./...
+
+cover: ## Run tests with coverage report (coverage.out is git-ignored)
+	go test -race -count=1 -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out | tail -1
+
+vet: ## go vet
+	go vet ./...
+
+lint: ## golangci-lint
+	golangci-lint run ./...
+
+fmt: ## gofmt
+	gofmt -s -w .
+
+deps: ## Download and tidy modules
 	go mod download
 	go mod tidy
 
-# Build Docker image
-docker-build:
-	docker build -t devopslab-backend:latest .
+docker-build: ## Build the backend image
+	docker build --build-arg VERSION=$(VERSION) -t devopslab-backend:$(VERSION) .
 
-# Run with Docker
-docker-run:
-	docker run -p 8080:8080 --env-file .env devopslab-backend:latest
-
-# Clean build artifacts
-clean:
-	rm -rf bin/
-	go clean
-
-# Development with hot reload
-dev:
-	go run github.com/cosmtrek/air@latest
-
-# Generate swagger docs
-swagger:
-	swag init -g cmd/server/main.go
-
-# Format code
-fmt:
-	go fmt ./...
-
-# Run linter
-lint:
-	golangci-lint run
-
-# All
-all: deps fmt build test
+clean: ## Remove build artifacts
+	rm -rf bin/ coverage.out

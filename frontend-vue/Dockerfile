@@ -1,27 +1,41 @@
-# Build stage
-FROM node:20-alpine AS builder
+# syntax=docker/dockerfile:1.7
+#
+# DevOps Journey Lab - frontend image (Vue SPA served by unprivileged nginx).
+
+ARG NODE_VERSION=22
+ARG NGINX_VERSION=1.29
+
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-RUN npm ci
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
-# Copy source
 COPY . .
 
-# Build
+# Same-origin API by default: nginx proxies /api and /ws to the backend.
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
 
-# Copy build files
-COPY --from=builder /app/dist /usr/share/nginx/html
+LABEL org.opencontainers.image.title="devopslab-frontend" \
+      org.opencontainers.image.description="DevOps Journey Lab web UI" \
+      org.opencontainers.image.source="https://github.com/ismoilovdevml/devopsjourney-lab" \
+      org.opencontainers.image.licenses="MIT"
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=root:root nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder --chown=root:root /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+# nginx-unprivileged already runs as uid 101; be explicit.
+USER 101
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,20 @@
+# Keep the build context minimal and free of secrets.
+.git
+.github
+.env
+.env.*
+!.env.example
+*.out
+coverage*
+bin/
+tmp/
+*.bak
+*.log
+*.test
+.DS_Store
+.vscode/
+.idea/
+Dockerfile
+.dockerignore
+Makefile
+lab-image/

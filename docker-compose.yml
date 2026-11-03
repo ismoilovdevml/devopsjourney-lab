@@ -1,127 +1,281 @@
+# DevOps Journey Lab - production-like stack.
+#
+#   make secrets   # once: creates .env with random secrets
+#   make up        # = docker compose up -d --build --wait
+#
+# Only the `frontend` (nginx) port is published on the host. PostgreSQL,
+# Redis, the backend and the Docker API proxy live on internal networks.
+#
+# Networks:
+#   public  frontend only; the bridge that carries the published HTTP port
+#   edge    frontend <-> backend            (internal, no egress)
+#   data    backend  <-> postgres, redis    (internal, no egress)
+#   docker  backend  <-> docker-proxy       (internal, no egress)
+
+name: devopslab
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: devopslab-postgres
+    <<: *hardening
+    # Run as the image's postgres user (uid 70) from the start: no root, no
+    # capabilities. Fresh named volumes inherit the image's ownership.
+    user: "70:70"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
     environment:
       POSTGRES_DB: ${DB_NAME:-devopslab}
       POSTGRES_USER: ${DB_USER:-devopslab}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-devopslab_secret}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in .env - run make secrets}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    networks: [data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-devopslab}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - devopslab-network
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging: *logging
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    container_name: devopslab-redis
-    ports:
-      - "6379:6379"
+    <<: *hardening
+    # Run as the image's redis user (uid 999) from the start: no root, no
+    # capabilities. Fresh named volumes inherit the image's ownership.
+    user: "999:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env - run make secrets}"
+    # $$ defers expansion to the container shell, so the password does not
+    # appear in `docker compose config` output.
+    command: ["sh", "-c", "exec docker-entrypoint.sh redis-server --requirepass \"$${REDIS_PASSWORD}\" --appendonly yes --save 60 1000"]
     volumes:
       - redis_data:/data
+    networks: [data]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
-    networks:
-      - devopslab-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging: *logging
     restart: unless-stopped
+
+  # Narrow, allow-listed Docker API for the backend. Only this container
+  # mounts the Docker socket; the backend talks to it over TCP on an internal
+  # network. Everything not listed as 1 is denied (HTTP 403).
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    <<: *hardening
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    environment:
+      # Allowed: lab container lifecycle, exec (terminal), image inspect/pull,
+      # daemon info/ping/version. POST is required for create/start/exec.
+      CONTAINERS: 1
+      EXEC: 1
+      IMAGES: 1
+      INFO: 1
+      PING: 1
+      VERSION: 1
+      POST: 1
+      # Denied explicitly (EVENTS defaults to 1 in the image).
+      ALLOW_RESTARTS: 0
+      ALLOW_START: 0
+      ALLOW_STOP: 0
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EVENTS: 0
+      GRPC: 0
+      NETWORKS: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2375/_ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging: *logging
+    restart: unless-stopped
+
+  # One-shot: builds the student lab image (devopslab-lab:latest) so that
+  # `docker compose up --build` produces everything. The container itself
+  # exits immediately; lab containers are created by the backend at runtime.
+  lab-image:
+    build:
+      context: ./backend-go/lab-image
+    image: ${DEFAULT_IMAGE:-devopslab-lab:latest}
+    entrypoint: ["/bin/true"]
+    command: []
+    network_mode: none
+    <<: *hardening
+    read_only: true
+    restart: "no"
+    logging: *logging
 
   backend:
     build:
       context: ./backend-go
-      dockerfile: Dockerfile
-    container_name: devopslab-backend
-    ports:
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      args:
+        VERSION: ${APP_VERSION:-dev}
+    image: devopslab-backend:${APP_VERSION:-dev}
+    <<: *hardening
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Runs as the unprivileged uid baked into the image (10001); does NOT
+    # mount the Docker socket.
     environment:
-      # Server
-      - PORT=${PORT:-8080}
-      - GIN_MODE=${GIN_MODE:-release}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      PORT: "8080"
+      GIN_MODE: ${GIN_MODE:-release}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
 
-      # Database
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-devopslab}
-      - DB_PASSWORD=${DB_PASSWORD:-devopslab_secret}
-      - DB_NAME=${DB_NAME:-devopslab}
-      - DB_SSLMODE=disable
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-devopslab}
+      DB_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in .env - run make secrets}"
+      DB_NAME: ${DB_NAME:-devopslab}
+      DB_SSLMODE: disable
 
-      # Redis
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=0
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env - run make secrets}"
+      REDIS_DB: ${REDIS_DB:-0}
 
-      # JWT
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env - run make secrets}"
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
+      # Secure by default; set COOKIE_SECURE=false in .env only for http://localhost.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8088}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
 
-      # Docker
-      - DOCKER_SOCKET=/var/run/docker.sock
-      - DEFAULT_IMAGE=${DEFAULT_IMAGE:-devopslab:latest}
-      - TASKS_DIR=./tasks
-      - SESSION_TTL=${SESSION_TTL:-3600}
-      - MEM_LIMIT=${MEM_LIMIT:-536870912}
-      - CPU_NANO=${CPU_NANO:-500000000}
-      - PIDS_LIMIT=${PIDS_LIMIT:-256}
+      SEED_ADMIN: ${SEED_ADMIN:-true}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env - run make secrets}"
 
-      # CORS
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:80}
+      # Docker API via the allow-listing proxy (no socket mount).
+      DOCKER_HOST: tcp://docker-proxy:2375
+      DEFAULT_IMAGE: ${DEFAULT_IMAGE:-devopslab-lab:latest}
+      TASKS_DIR: /app/tasks
+      SESSION_TTL: ${SESSION_TTL:-3600}
+      MAX_SESSIONS_TOTAL: ${MAX_SESSIONS_TOTAL:-20}
+      MEM_LIMIT: ${MEM_LIMIT:-536870912}
+      CPU_NANO: ${CPU_NANO:-500000000}
+      PIDS_LIMIT: ${PIDS_LIMIT:-256}
 
-      # Admin User Seeding
-      - SEED_ADMIN=${SEED_ADMIN:-true}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@devopslab.com}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
-
-      # Monitoring
-      - PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED:-false}
-      - PROMETHEUS_PORT=9090
+      PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-false}
+      PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9090}
+    networks: [edge, data, docker]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - devopslab-network
+      docker-proxy:
+        condition: service_healthy
+      lab-image:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 256
+    logging: *logging
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend-vue
-      dockerfile: Dockerfile
-    container_name: devopslab-frontend
+    image: devopslab-frontend:${APP_VERSION:-dev}
+    <<: *hardening
+    read_only: true
+    tmpfs:
+      - /tmp
     ports:
-      - "3000:80"
-    environment:
-      - VITE_API_URL=http://localhost:8080/api
+      - "${HTTP_PORT:-8088}:8080"
+    networks: [public, edge]
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+          pids: 128
+    logging: *logging
     restart: unless-stopped
-    networks:
-      - devopslab-network
 
 networks:
-  devopslab-network:
-    driver: bridge
+  public:
+  edge:
+    internal: true
+  data:
+    internal: true
+  docker:
+    internal: true
 
 volumes:
   postgres_data:

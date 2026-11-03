@@ -1,171 +1,263 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
 
-# Cancel in-progress runs for the same workflow
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GO_VERSION_FILE: backend-go/go.mod
+  NODE_VERSION: "22"
+
 jobs:
-  # Detect which files changed
-  changes:
+  backend:
+    name: Backend (vet, lint, test)
     runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend-go/**'
-              - '.github/workflows/ci.yml'
-            frontend:
-              - 'frontend-vue/**'
-              - '.github/workflows/ci.yml'
-
-  backend-test:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-go
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: devopslab_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"  # Faster initialization
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test -d devopslab_test"
           --health-interval 5s
           --health-timeout 3s
-          --health-retries 3
+          --health-retries 10
         ports:
           - 5432:5432
-
       redis:
         image: redis:7-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
-          --health-retries 3
+          --health-retries 10
         ports:
           - 6379:6379
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
         with:
-          go-version: '1.24'
-          cache: true  # Built-in Go cache
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: backend-go/go.sum
 
-      - name: Cache Go build
-        uses: actions/cache@v4
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('backend-go/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          version: v2.15
+          working-directory: backend-go
 
-      - name: Install dependencies
-        working-directory: ./backend-go
-        run: go mod download
-
-      - name: Run tests
-        working-directory: ./backend-go
+      - name: go test -race
         env:
           DB_HOST: localhost
-          DB_PORT: 5432
+          DB_PORT: "5432"
           DB_USER: test
           DB_PASSWORD: test
           DB_NAME: devopslab_test
+          DB_SSLMODE: disable
           REDIS_HOST: localhost
-          REDIS_PORT: 6379
-        run: go test -v -coverprofile=coverage.out ./...
+          REDIS_PORT: "6379"
+          JWT_SECRET: ci-only-not-a-secret-0123456789abcdef
+        run: go test -race -count=1 ./...
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./backend-go/coverage.out
-          flags: backend
-
-  frontend-test:
-    name: Frontend Tests
+  frontend:
+    name: Frontend (lint, typecheck, build)
     runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend-vue
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: '20'
+          persist-credentials: false
 
-      - name: Cache node modules
-        uses: actions/cache@v4
+      - uses: actions/setup-node@v7
         with:
-          path: frontend-vue/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend-vue/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend-vue/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ./frontend-vue
-        run: npm ci
+      - run: npm ci
 
-      - name: Run lint
-        working-directory: ./frontend-vue
+      - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npx --no-install vue-tsc --noEmit
+
       - name: Build
-        working-directory: ./frontend-vue
         run: npm run build
 
-  # docker-build:
-  #   name: Docker Build
-  #   runs-on: ubuntu-latest
-  #   needs: [backend-test, frontend-test]
-  #   if: github.event_name == 'push'
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend, frontend]
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-  #   steps:
-  #     - uses: actions/checkout@v4
+      # hashFiles() is not available in a job-level `if`, so gate each step.
+      - name: Check for e2e suite
+        id: guard
+        run: |
+          if [ -f e2e/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::e2e/package.json not found; skipping end-to-end tests."
+          fi
 
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-node@v7
+        if: steps.guard.outputs.present == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
 
-  #     - name: Build backend image
-  #       uses: docker/build-push-action@v5
-  #       with:
-  #         context: ./backend-go
-  #         push: false
-  #         tags: devopslab-backend:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max
+      - name: Generate .env with random secrets
+        if: steps.guard.outputs.present == 'true'
+        run: |
+          scripts/gen-secrets.sh
+          # Mask generated secrets in any later log output.
+          grep -E '^(JWT_SECRET|DB_PASSWORD|REDIS_PASSWORD|ADMIN_PASSWORD)=' .env \
+            | cut -d= -f2- | while read -r v; do echo "::add-mask::$v"; done
 
-  #     - name: Build frontend image
-  #       uses: docker/build-push-action@v5
-  #       with:
-  #         context: ./frontend-vue
-  #         push: false
-  #         tags: devopslab-frontend:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max
+      - name: Start stack
+        if: steps.guard.outputs.present == 'true'
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Install Playwright
+        if: steps.guard.outputs.present == 'true'
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        if: steps.guard.outputs.present == 'true'
+        working-directory: e2e
+        env:
+          BASE_URL: http://localhost:8088
+        run: |
+          set -a; . ../.env; set +a
+          npx playwright test
+
+      - name: Compose logs on failure
+        if: failure() && steps.guard.outputs.present == 'true'
+        run: docker compose logs --no-color --tail=300
+
+      - name: Upload Playwright report
+        if: always() && steps.guard.outputs.present == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always() && steps.guard.outputs.present == 'true'
+        run: docker compose down -v --remove-orphans
+
+  security:
+    name: Security (secrets, vulns, config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: backend-go/go.sum
+
+      - name: govulncheck
+        working-directory: backend-go
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: npm audit (frontend)
+        working-directory: frontend-vue
+        run: npm audit --audit-level=high
+
+      # Misconfiguration scan of Dockerfiles. The student lab image is a
+      # deliberately root, offline sandbox (no network, runtime-limited by the
+      # backend), so it is excluded from the non-root rule set.
+      - name: trivy config
+        run: |
+          docker run --rm -v "$PWD:/src:ro" aquasec/trivy:0.74.0 config \
+            --quiet --exit-code 1 --severity HIGH,CRITICAL \
+            --skip-files backend-go/lab-image/Dockerfile \
+            /src
+
+  docker:
+    name: Docker images (build only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: backend-go
+          - name: frontend
+            context: frontend-vue
+          - name: lab
+            context: backend-go/lab-image
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build ${{ matrix.name }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: devopslab-${{ matrix.name }}:ci
+          build-args: |
+            VERSION=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

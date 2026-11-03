@@ -1,40 +1,57 @@
-# Node.js
+# ---------------------------------------------------------------------------
+# Secrets / local environment (any directory). Templates stay tracked.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# Go
+# ---------------------------------------------------------------------------
+bin/
+*.out
+coverage.out
+coverage.html
+*.test
+__debug_bin*
+
+# ---------------------------------------------------------------------------
+# Node / frontend / e2e
+# ---------------------------------------------------------------------------
 node_modules/
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# package-lock.json should be committed for reproducible builds
-yarn.lock
+pnpm-debug.log*
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+e2e/.auth/
 
-# Next.js
-.next/
-out/
-.vercel/
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
+# ---------------------------------------------------------------------------
 # Docker
-*.tar
+# ---------------------------------------------------------------------------
 docker-compose.override.yml
+*.tar
 
-# VSCode
+# ---------------------------------------------------------------------------
+# Editors / OS / misc
+# ---------------------------------------------------------------------------
 .vscode/
-
-# Logs
-logs/
-*.log
-
-# Build output
-dist/
-build/
-coverage/
-
-# Static files (stc)
-public/static/
-static/
-
-# OS files
+.idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
+logs/
+*.log
+*.bak
+*.orig
+tmp/
