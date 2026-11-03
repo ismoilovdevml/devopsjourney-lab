@@ -200,7 +200,6 @@ test.describe('lab workspace', () => {
     void student
     // Known bug H1: checks run as `bash -lc` (backend-go/internal/docker/exec.go), so a root-written
     // ~/.bash_profile containing `exit 0` makes every check exit 0. Remove this line once fixed.
-    test.fail(true, 'BUG H1: checks honour root-controlled bash_profile')
     await startLabFromTasks(page, NGINX)
     expect((await runCommand(page, `echo 'exit 0' > /root/.bash_profile`)).exitCode).toBe(0)
 

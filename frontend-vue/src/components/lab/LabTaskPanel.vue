@@ -27,7 +27,8 @@
         class="h-[104px]"
       />
       <Skeleton v-else height="104px" rounded="rounded-none" />
-      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0D121B] to-transparent px-5 pb-2.5 pt-6">
+      <!-- Left-to-right fade keeps the title readable over the cover artwork. -->
+      <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-r from-[#0D121B] via-[#0D121B]/90 to-[#0D121B]/20 px-5 pb-2.5">
         <template v-if="task">
           <p class="font-mono text-xs text-text-2">
             {{ taskNumber(task.order) }} · {{ visual.categoryLabel }} ·

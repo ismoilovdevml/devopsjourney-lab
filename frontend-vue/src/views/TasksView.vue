@@ -162,7 +162,8 @@ import {
 } from '@/components/tasks/filters'
 import { useToast } from '@/composables/useToast'
 import { taskStatus, type TaskStatus } from '@/constants/tasks'
-import { errorMessage, isApiStatus } from '@/services/api'
+import { isApiStatus } from '@/services/api'
+import { sessionStartMessage } from '@/services/sessionErrors'
 import { useSessionStore } from '@/stores/session'
 import { useTaskStore } from '@/stores/task'
 import type { TaskDetail, TaskSummary } from '@/types'
@@ -362,14 +363,8 @@ async function startSelected(): Promise<void> {
     await router.push({ name: 'lab', params: { taskId: task.id } })
   } catch (err) {
     confirmOpen.value = false
-    if (isApiStatus(err, 409)) {
-      toast.warning('Bu vazifa hali qulflangan. Avval oldingi vazifani yakunlang.')
-      reload()
-    } else if (isApiStatus(err, 503)) {
-      toast.error("Laboratoriyada bo'sh joy qolmadi. Bir necha daqiqadan so'ng qayta urinib ko'ring.")
-    } else {
-      toast.error(errorMessage(err, "Laboratoriyani ishga tushirib bo'lmadi."))
-    }
+    toast.error(sessionStartMessage(err, "Laboratoriyani ishga tushirib bo'lmadi."))
+    if (isApiStatus(err, 409)) reload()
   }
 }
 

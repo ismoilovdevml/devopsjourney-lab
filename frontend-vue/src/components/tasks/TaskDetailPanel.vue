@@ -88,7 +88,7 @@
         class="flex items-center gap-2.5 rounded-btn border border-dashed border-border-stronger px-3.5 py-3 text-text-2"
       >
         <Lock class="h-4 w-4 shrink-0 text-warn" aria-hidden="true" />
-        Ochish uchun avvalgi vazifalarni yakunlang
+        {{ task.available === false ? "Bu serverda mavjud emas: xavfsiz sandbox talab qilinadi" : 'Ochish uchun avvalgi vazifalarni yakunlang' }}
       </div>
       <Button
         v-else-if="sessionTask"

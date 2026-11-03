@@ -38,6 +38,8 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { usePreferencesStore } from '@/stores/preferences'
+import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 import type { TerminalResizeFrame } from '@/types'
 
 type TerminalStatus = 'connecting' | 'open' | 'reconnecting' | 'closed' | 'failed'
@@ -180,6 +182,13 @@ function connect() {
   socket.onclose = (event: CloseEvent) => {
     if (disposed || ws !== socket) return
     ws = null
+    if (event.code === 4401) {
+      // Account disabled or password changed elsewhere: the session is no longer valid.
+      setStatus('closed')
+      useAuthStore().clear()
+      void router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+      return
+    }
     if (FATAL_CLOSE_CODES.has(event.code) || attempts.value >= MAX_RECONNECTS) {
       setStatus(attempts.value >= MAX_RECONNECTS ? 'failed' : 'closed')
       term?.write('\r\n\x1b[31mUlanish yopildi. Sahifani yangilang yoki sessiyani qayta yarating.\x1b[0m\r\n')

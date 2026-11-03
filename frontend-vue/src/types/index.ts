@@ -70,6 +70,9 @@ export interface TaskSummary {
   unlocked: boolean
   completed: boolean
   in_progress: boolean
+  /** False when the server cannot run this task safely (e.g. NET_ADMIN without a sandbox runtime). */
+  available: boolean
+  unavailable_reason?: string
 }
 
 export interface TaskCheck {

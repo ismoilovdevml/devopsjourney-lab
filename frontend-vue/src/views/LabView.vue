@@ -31,8 +31,10 @@
             v-if="phase === 'locked'"
             :icon="Lock"
             :command="`$ lab start ${taskId} → permission denied`"
-            title="Bu vazifa hali qulflangan"
-            description="Avval oldingi vazifalarni yakunlang — keyin bu laboratoriya ochiladi."
+            :title="task?.available === false ? 'Bu vazifa hozircha mavjud emas' : 'Bu vazifa hali qulflangan'"
+            :description="task?.available === false
+              ? 'Server bu vazifani xavfsiz sandbox (gVisor) bo\'lmasa ishga tushirmaydi.'
+              : 'Avval oldingi vazifalarni yakunlang — keyin bu laboratoriya ochiladi.'"
           >
             <template #actions>
               <Button variant="primary" :icon="ArrowLeft" to="/tasks">Vazifalarga qaytish</Button>
@@ -169,6 +171,7 @@ import LabTopBar from '@/components/lab/LabTopBar.vue'
 import type { ConnectionState, LabTab } from '@/components/lab/types'
 import { useToast } from '@/composables/useToast'
 import { errorMessage, isApiStatus } from '@/services/api'
+import { sessionStartMessage } from '@/services/sessionErrors'
 import { useSessionStore } from '@/stores/session'
 import { useTaskStore } from '@/stores/task'
 import type { TaskDetail } from '@/types'
@@ -298,9 +301,7 @@ async function startSession(): Promise<void> {
   try {
     await session.start(id)
   } catch (err) {
-    startError.value = isApiStatus(err, 409)
-      ? 'Bu vazifa hali qulflangan. Avval oldingi vazifalarni yakunlang.'
-      : errorMessage(err, "Muhitni ishga tushirib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.")
+    startError.value = sessionStartMessage(err, "Muhitni ishga tushirib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.")
   }
 }
 
@@ -366,11 +367,7 @@ async function goNext(): Promise<void> {
     await router.push({ name: 'lab', params: { taskId: next.id } })
   } catch (err) {
     nextOpen.value = false
-    toast.error(
-      isApiStatus(err, 409)
-        ? 'Keyingi vazifa hali ochilmagan.'
-        : errorMessage(err, "Keyingi vazifa uchun muhit yaratib bo'lmadi.")
-    )
+    toast.error(sessionStartMessage(err, "Keyingi vazifa uchun muhit yaratib bo'lmadi."))
   } finally {
     nextBusy.value = false
   }
