@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Admin panel — DevOps Journey Lab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0A0E14 url(assets/wallpaper.svg) center top / cover fixed}
+a{color:#3DDC97}a:hover{color:#7EF0BE}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #E6EDF3; min-height: 100vh; font-size: 14px; line-height: 1.5">
+
+<header style="background: rgba(10,14,20,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid #1F2A3A">
+<div style="padding: 10px 24px; min-height: 44px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">
+<span style="width: 30px; height: 30px; border-radius: 8px; background: #3DDC97; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(61,220,151,0.45)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#04130C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg></span>
+<span>devops_journey<span style="color: #94A3B8">/admin</span></span>
+</a>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #F5B342; background: rgba(245,179,66,0.1); border: 1px solid rgba(245,179,66,0.35); padding: 2px 8px; border-radius: 6px">sudo</span>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+<span style="display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #3DDC97"><span style="width: 7px; height: 7px; border-radius: 50%; background: #3DDC97; box-shadow: 0 0 8px #3DDC97"></span>all systems operational</span>
+<a href="Main.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #C9D4E0; font-weight: 500; border: 1px solid #243247">O'quvchi ko'rinishi</a>
+<a href="Profile.dc.html" aria-label="Profil" style="width: 38px; height: 38px; border-radius: 50%; background: #141C2A; border: 1.5px solid #F5B342; color: #F5B342; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; font-size: 13px; box-sizing: border-box">AD</a>
+</div>
+</div>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start">
+<nav aria-label="Admin bo'limlari" style="flex: 1 1 220px; max-width: 250px; margin: 24px 0 24px 24px; padding: 8px; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box; background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 14px">
+<sc-for list="{{nav}}" as="n" hint-placeholder-count="6">
+<button type="button" onClick="{{n.pick}}" aria-current="{{n.on}}" style="{{n.style}}"><span>{{n.label}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94A3B8">{{n.count}}</span></button>
+</sc-for>
+</nav>
+
+<main style="flex: 999 1 640px; min-width: 0; padding: 24px 24px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+<h1 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">{{title}}</h1>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #94A3B8">auto-refresh 10s</span>
+</div>
+
+<sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+<div style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 13px; color: #94A3B8">{{k.label}}</div>
+<div style="{{k.valStyle}}">{{k.value}}</div>
+<div style="font-size: 12.5px; color: #94A3B8">{{k.note}}</div>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: stretch">
+<section aria-labelledby="load" style="flex: 2 1 420px; min-width: 0; background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 18px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 id="load" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600">Faol sessiyalar · 24 soat</h2><span style="font-size: 12px; color: #94A3B8">soatbay</span></div>
+<div role="img" aria-label="Faol sessiyalar soni 24 soat davomida, kunduzi 14 tagacha" style="height: 140px; display: flex; align-items: flex-end; gap: 4px; padding-top: 8px; border-bottom: 1px solid #243247">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="24"><span style="{{b}}"></span></sc-for>
+</div>
+<div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #94A3B8"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>hozir</span></div>
+</section>
+<section aria-labelledby="funnel" style="flex: 1 1 320px; background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 18px 22px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="funnel" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600">Yakunlash darajasi</h2>
+<sc-for list="{{completion}}" as="c" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; font-size: 13px"><span>{{c.title}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #94A3B8">{{c.pct}}</span></div>
+<span style="height: 6px; background: #1A2332; border-radius: 999px; overflow: hidden; display: block"><span style="{{c.bar}}"></span></span>
+</div>
+</sc-for>
+</section>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isUsers}}" hint-placeholder-val="{{false}}">
+<section style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; overflow: hidden">
+<div style="padding: 12px 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #1A2332">
+<label style="flex: 1 1 240px; max-width: 340px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Foydalanuvchi qidirish</span><input type="search" placeholder="grep user / email" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border: 1px solid #243247; border-radius: 9px; background: #0B1018; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #E6EDF3"></label>
+<button type="button" style="margin-left: auto; height: 40px; padding: 0 14px; border: 0; border-radius: 9px; background: #3DDC97; color: #04130C; font: inherit; font-weight: 600; cursor: pointer">+ Foydalanuvchi</button>
+</div>
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 760px; border-collapse: collapse">
+<thead><tr style="text-align: left; font-size: 12px; color: #94A3B8; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em">
+<th scope="col" style="padding: 12px 20px; font-weight: 500">Foydalanuvchi</th><th scope="col" style="padding: 12px 16px; font-weight: 500">Rol</th><th scope="col" style="padding: 12px 16px; font-weight: 500">XP</th><th scope="col" style="padding: 12px 16px; font-weight: 500">Holat</th><th scope="col" style="padding: 12px 16px; font-weight: 500">Oxirgi faollik</th><th scope="col" style="padding: 12px 20px 12px 16px; font-weight: 500; text-align: right">Amallar</th>
+</tr></thead>
+<tbody>
+<sc-for list="{{users}}" as="u" hint-placeholder-count="6">
+<tr style="border-top: 1px solid #1A2332">
+<td style="padding: 12px 20px"><span style="display: block; font-family: 'JetBrains Mono', monospace; font-weight: 500">{{u.name}}</span><span style="font-size: 12.5px; color: #94A3B8">{{u.email}}</span></td>
+<td style="padding: 12px 16px; color: #C9D4E0">{{u.role}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #3DDC97">{{u.score}}</td>
+<td style="padding: 12px 16px"><span style="{{u.badge}}">{{u.status}}</span></td>
+<td style="padding: 12px 16px; color: #94A3B8">{{u.last}}</td>
+<td style="padding: 12px 20px 12px 16px; text-align: right; white-space: nowrap"><button type="button" style="height: 32px; padding: 0 10px; border: 1px solid #243247; border-radius: 7px; background: #0F1520; color: #C9D4E0; font: inherit; cursor: pointer">Ko'rish</button> <button type="button" style="height: 32px; padding: 0 10px; border: 1px solid #243247; border-radius: 7px; background: #0F1520; color: #C9D4E0; font: inherit; cursor: pointer">Tahrirlash</button></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isSessions}}" hint-placeholder-val="{{false}}">
+<section style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; overflow-x: auto">
+<table style="width: 100%; min-width: 800px; border-collapse: collapse">
+<thead><tr style="text-align: left; font-size: 12px; color: #94A3B8; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em">
+<th scope="col" style="padding: 12px 20px; font-weight: 500">Container</th><th scope="col" style="padding: 12px 16px; font-weight: 500">O'quvchi</th><th scope="col" style="padding: 12px 16px; font-weight: 500">Vazifa</th><th scope="col" style="padding: 12px 16px; font-weight: 500">TTL</th><th scope="col" style="padding: 12px 16px; font-weight: 500">CPU / RAM</th><th scope="col" style="padding: 12px 20px 12px 16px; font-weight: 500; text-align: right"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Amal</span></th>
+</tr></thead>
+<tbody>
+<sc-for list="{{sessions}}" as="s" hint-placeholder-count="5">
+<tr style="border-top: 1px solid #1A2332">
+<td style="padding: 12px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px"><span style="color: #3DDC97">●</span> {{s.id}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-weight: 500">{{s.user}}</td>
+<td style="padding: 12px 16px; color: #C9D4E0">{{s.task}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px">{{s.ttl}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #38BDF8">{{s.res}}</td>
+<td style="padding: 12px 20px 12px 16px; text-align: right"><button type="button" onClick="{{s.kill}}" style="height: 32px; padding: 0 10px; border: 1px solid rgba(248,113,113,0.45); border-radius: 7px; background: rgba(248,113,113,0.08); color: #F87171; font: inherit; cursor: pointer">kill</button></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</section>
+</sc-if>
+
+<sc-if value="{{isActivity}}" hint-placeholder-val="{{false}}">
+<section style="background: #070A0F; border: 1px solid #1F2A3A; border-radius: 16px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #111824; border-bottom: 1px solid #1F2A3A">
+<span style="width: 10px; height: 10px; border-radius: 50%; background: #F87171"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #F5B342"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #3DDC97"></span>
+<span style="margin-left: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #94A3B8">journalctl -u devops-lab -f</span>
+</div>
+<ul style="list-style: none; margin: 0; padding: 12px 18px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.9">
+<sc-for list="{{activity}}" as="a" hint-placeholder-count="8">
+<li><span style="color: #64748B">{{a.t}}</span>  <span style="{{a.lvl}}">{{a.level}}</span>  <span style="color: #38BDF8">{{a.user}}</span>  <span style="color: #C9D4E0">{{a.text}}</span></li>
+</sc-for>
+</ul>
+</section>
+</sc-if>
+
+<sc-if value="{{isResources}}" hint-placeholder-val="{{false}}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+<sc-for list="{{resources}}" as="r" hint-placeholder-count="4">
+<div style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'JetBrains Mono', monospace; color: #94A3B8">{{r.label}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700">{{r.value}}</span></div>
+<div style="display: flex; gap: 3px"><sc-for list="{{r.cells}}" as="c" hint-placeholder-count="20"><span style="{{c}}"></span></sc-for></div>
+<span style="font-size: 12.5px; color: #94A3B8">{{r.note}}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{isTasks}}" hint-placeholder-val="{{false}}">
+<section style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; overflow: hidden">
+<div style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #1A2332">
+<span style="color: #94A3B8">Manba: <code style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #A78BFA">backend-go/tasks/*/task.yaml</code></span>
+<button type="button" onClick="{{reload}}" style="height: 40px; padding: 0 14px; border: 1px solid #243247; border-radius: 9px; background: #0F1520; color: #E6EDF3; font: inherit; font-weight: 500; cursor: pointer">{{reloadLabel}}</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 16px">
+<sc-for list="{{taskList}}" as="t" hint-placeholder-count="6">
+<div style="border: 1px solid #1F2A3A; border-radius: 12px; overflow: hidden; background: #0B1018">
+<img src="{{t.cover}}" alt="" style="display: block; width: 100%; aspect-ratio: 320 / 110; object-fit: cover">
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94A3B8">{{t.id}}</span>
+<span style="font-weight: 600">{{t.title}}</span>
+<span style="font-size: 12.5px; color: #94A3B8">{{t.meta}}</span>
+</div>
+</div>
+</sc-for>
+</div>
+</section>
+</sc-if>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1160}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { tab: 'overview', killed: [], reloaded: false }; }
+  renderVals() {
+    const st = this.state;
+    const C = { nginx: 'assets/cover-nginx.svg', docker: 'assets/cover-docker.svg', systemd: 'assets/cover-systemd.svg', users: 'assets/cover-users.svg', firewall: 'assets/cover-firewall.svg', cron: 'assets/cover-cron.svg' };
+    const sessionsAll = [
+      ['lab-a91f3c', 'laylo.k', 'Cron Job & Backup', '38:10', '4% · 92M'],
+      ['lab-7be0e1', 'sardor_a', 'Systemd Service', '47:12', '2% · 64M'],
+      ['lab-c33d9a', 'bekzod', 'Docker Container', '12:45', '11% · 210M'],
+      ['lab-0f42b7', 'malika.s', 'UFW Firewall', '55:03', '1% · 48M'],
+      ['lab-e8a144', 'azizbek', 'Linux User', '05:20', '1% · 40M']
+    ].filter(s => !st.killed.includes(s[0]));
+    const T = [['overview', 'Umumiy', ''], ['users', 'Foydalanuvchilar', '48'], ['sessions', 'Sessiyalar', String(sessionsAll.length)], ['activity', 'Faollik jurnali', ''], ['resources', 'Resurslar', ''], ['tasks', 'Vazifalar', '6']];
+    const titles = { overview: 'Umumiy ko‘rinish', users: 'Foydalanuvchilar', sessions: 'Faol sessiyalar', activity: 'Faollik jurnali', resources: 'Server resurslari', tasks: 'Vazifalar' };
+    const B = { Faol: 'color:#3DDC97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.3)', 'Bloklangan': 'color:#F87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35)' };
+    const load = [3, 2, 1, 1, 0, 1, 2, 4, 7, 10, 12, 14, 13, 11, 12, 13, 14, 12, 9, 8, 7, 6, 5, 5];
+    const cells = (p, c) => Array.from({ length: 20 }, (_, i) => 'display:block;flex:1;height:16px;border-radius:2px;background:' + (i < Math.round(p / 5) ? c : '#1A2332'));
+    return {
+      nav: T.map(([k, l, c]) => ({ label: l, count: c, on: st.tab === k,
+        style: 'display:flex;justify-content:space-between;align-items:center;text-align:left;height:40px;padding:0 12px;border:0;border-radius:8px;font:inherit;font-weight:500;cursor:pointer;' + (st.tab === k ? 'background:#1B2535;color:#E6EDF3;box-shadow:inset 2px 0 0 #3DDC97' : 'background:transparent;color:#94A3B8'),
+        pick: () => this.setState({ tab: k }) })),
+      title: titles[st.tab],
+      isOverview: st.tab === 'overview', isUsers: st.tab === 'users', isSessions: st.tab === 'sessions', isActivity: st.tab === 'activity', isResources: st.tab === 'resources', isTasks: st.tab === 'tasks',
+      kpis: [
+        ['O‘quvchilar', '48', '+6 shu hafta', '#E6EDF3'],
+        ['Faol konteynerlar', sessionsAll.length + '/20', 'TTL 60 daqiqa', '#3DDC97'],
+        ['Yakunlangan', '131', '412 ta tekshiruv', '#38BDF8'],
+        ['O‘rtacha XP', '96', '175 dan', '#F5B342']
+      ].map(([label, value, note, c]) => ({ label, value, note, valStyle: 'font-family:"JetBrains Mono",monospace;font-size:26px;font-weight:700;color:' + c })),
+      bars: load.map((v, i) => 'flex:1;border-radius:3px 3px 0 0;height:' + Math.max(4, Math.round(v / 14 * 100)) + '%;background:' + (i === load.length - 1 ? '#3DDC97' : 'rgba(61,220,151,.45)')),
+      completion: [['Nginx', 81], ['Docker', 63], ['Systemd', 42], ['User & Permission', 38], ['UFW Firewall', 27], ['Cron & Backup', 10]]
+        .map(([title, p]) => ({ title, pct: p + '%', bar: 'display:block;height:100%;border-radius:999px;background:#38BDF8;width:' + p + '%' })),
+      users: [['laylo.k', 'laylo@example.com', 'O‘quvchi', 175, 'Faol', '2 daq oldin'], ['timur_ops', 'timur@example.com', 'O‘quvchi', 175, 'Faol', '1 soat oldin'], ['sardor_a', 'sardor@example.com', 'O‘quvchi', 55, 'Faol', 'hozir'], ['bekzod', 'bekzod@example.com', 'O‘quvchi', 120, 'Faol', '5 daq oldin'], ['test_user', 'test@example.com', 'O‘quvchi', 0, 'Bloklangan', '3 kun oldin'], ['admin', 'admin@devopslab.com', 'Admin', '—', 'Faol', 'hozir']]
+        .map(([name, email, role, score, status, last]) => ({ name, email, role, score, status, last, badge: 'font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;' + B[status] })),
+      sessions: sessionsAll.map(([id, user, task, ttl, res]) => ({ id, user, task, ttl, res, kill: () => this.setState({ killed: [...st.killed, id] }) })),
+      activity: [['13:42:07', 'INFO', 'sardor_a', 'check systemd-service → 2/4'], ['13:40:51', 'INFO', 'laylo.k', 'session start cron-backup'], ['13:31:12', 'WARN', 'bekzod', 'check docker-basics → 3/4'], ['13:18:00', 'INFO', 'admin', 'tasks reloaded (6)'], ['13:05:44', 'INFO', 'malika.s', 'login'], ['12:57:30', 'INFO', 'timur_ops', 'completed cron-backup +35'], ['12:40:02', 'INFO', 'azizbek', 'register'], ['12:22:19', 'ERROR', 'admin', 'user test_user blocked']]
+        .map(([t, level, user, text]) => ({ t, level, user, text, lvl: 'font-weight:600;color:' + ({ INFO: '#3DDC97', WARN: '#F5B342', ERROR: '#F87171' })[level] })),
+      resources: [['cpu', 34, '34%', '8 vCPU · load 2.7', '#3DDC97'], ['memory', 58, '9.3/16G', 'konteynerlar: 454M', '#38BDF8'], ['disk', 41, '82/200G', 'images: 3.1G', '#A78BFA'], ['containers', 25, '5/20', 'limit: 20', '#F5B342']]
+        .map(([label, p, value, note, c]) => ({ label, value, note, cells: cells(p, c) })),
+      taskList: [['nginx-health', 'nginx', 'Nginx Web Server Setup', 'Oson · 4 tekshiruv'], ['docker-basics', 'docker', 'Docker Container Management', 'O‘rta · 4 tekshiruv'], ['systemd-service', 'systemd', 'Systemd Service Creation', 'O‘rta · 4 tekshiruv'], ['user-management', 'users', 'Linux User & Permission Management', 'Oson · 5 tekshiruv'], ['firewall-config', 'firewall', 'UFW Firewall Configuration', 'O‘rta · 5 tekshiruv'], ['cron-backup', 'cron', 'Cron Job & Backup Automation', 'Qiyin · 5 tekshiruv']]
+        .map(([id, c, title, meta]) => ({ id, title, meta, cover: C[c] })),
+      reloadLabel: st.reloaded ? '✓ 6 ta yuklandi' : 'Qayta yuklash',
+      reload: () => this.setState({ reloaded: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

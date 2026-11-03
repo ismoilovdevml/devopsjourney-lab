@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" preserveAspectRatio="xMidYMid slice">
+<defs>
+<radialGradient id="g1" cx="0.12" cy="0.05" r="0.6"><stop offset="0" stop-color="#3DDC97" stop-opacity="0.16"/><stop offset="1" stop-color="#3DDC97" stop-opacity="0"/></radialGradient>
+<radialGradient id="g2" cx="0.92" cy="0.35" r="0.55"><stop offset="0" stop-color="#38BDF8" stop-opacity="0.12"/><stop offset="1" stop-color="#38BDF8" stop-opacity="0"/></radialGradient>
+<radialGradient id="g3" cx="0.5" cy="1.1" r="0.6"><stop offset="0" stop-color="#A78BFA" stop-opacity="0.08"/><stop offset="1" stop-color="#A78BFA" stop-opacity="0"/></radialGradient>
+<pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" fill="#1C2636"/></pattern>
+<pattern id="grid" width="120" height="120" patternUnits="userSpaceOnUse"><path d="M120 0H0V120" fill="none" stroke="#121A26" stroke-width="1"/></pattern>
+</defs>
+<rect width="1600" height="1000" fill="#0A0E14"/>
+<rect width="1600" height="1000" fill="url(#grid)"/>
+<rect width="1600" height="1000" fill="url(#dots)"/>
+<rect width="1600" height="1000" fill="url(#g1)"/>
+<rect width="1600" height="1000" fill="url(#g2)"/>
+<rect width="1600" height="1000" fill="url(#g3)"/>
+<g fill="none" stroke="#1E2B3D" stroke-width="1.2">
+<path d="M120 240 L360 240 L360 120 L600 120"/>
+<path d="M360 240 L480 360 L840 360"/>
+<path d="M840 360 L960 240 L1200 240 L1320 120 L1560 120"/>
+<path d="M1200 240 L1200 480 L1440 480"/>
+<path d="M240 720 L480 720 L600 600 L960 600 L1080 720 L1440 720"/>
+<path d="M600 600 L600 840 L840 840"/>
+<path d="M1080 720 L1080 900"/>
+<path d="M40 480 L240 480 L240 720"/>
+</g>
+<g fill="none" stroke="#3DDC97" stroke-opacity="0.35" stroke-width="1.4">
+<path d="M360 240 L480 360 L840 360 L960 240 L1200 240"/>
+<path d="M600 600 L960 600 L1080 720"/>
+</g>
+<g fill="#0A0E14" stroke-width="1.5">
+<circle cx="360" cy="240" r="5" stroke="#3DDC97"/>
+<circle cx="840" cy="360" r="5" stroke="#3DDC97"/>
+<circle cx="1200" cy="240" r="5" stroke="#38BDF8"/>
+<circle cx="600" cy="120" r="4" stroke="#2A3A52"/>
+<circle cx="1320" cy="120" r="4" stroke="#2A3A52"/>
+<circle cx="1440" cy="480" r="4" stroke="#2A3A52"/>
+<circle cx="600" cy="600" r="5" stroke="#38BDF8"/>
+<circle cx="1080" cy="720" r="5" stroke="#3DDC97"/>
+<circle cx="840" cy="840" r="4" stroke="#2A3A52"/>
+<circle cx="240" cy="720" r="4" stroke="#2A3A52"/>
+<circle cx="1440" cy="720" r="4" stroke="#2A3A52"/>
+</g>
+<g fill="#3DDC97"><circle cx="360" cy="240" r="2"/><circle cx="840" cy="360" r="2"/><circle cx="1080" cy="720" r="2"/></g>
+<g fill="#38BDF8"><circle cx="1200" cy="240" r="2"/><circle cx="600" cy="600" r="2"/></g>
+</svg>

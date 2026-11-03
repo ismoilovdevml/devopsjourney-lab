@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 140" width="320" height="140">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3A1520"/><stop offset="1" stop-color="#0B121C"/></linearGradient>
+<pattern id="d" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#4A2230"/></pattern></defs>
+<rect width="320" height="140" fill="url(#g)"/><rect width="320" height="140" fill="url(#d)"/>
+<path d="M238 22l38 14v30c0 26-18 42-38 52-20-10-38-26-38-52V36z" fill="#2A1119" stroke="#FB7185" stroke-width="2.5" stroke-linejoin="round"/>
+<g stroke="#FB7185" stroke-opacity="0.55" stroke-width="1.5"><path d="M206 52h64M206 72h64M210 92h56M226 36v16M250 36v16M238 52v20M214 72v20M262 72v20M238 92v18"/></g>
+<g font-family="ui-monospace, Menlo, monospace" font-size="12"><text x="20" y="54" fill="#FB7185">$ ufw allow 22,80,443</text><text x="20" y="74" fill="#C9D4E0">$ ufw enable</text><text x="20" y="94" fill="#94A3B8">Status: active</text></g>
+</svg>

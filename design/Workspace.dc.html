@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Laboratoriya — Systemd Service Creation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0A0E14 url(assets/wallpaper.svg) center top / cover fixed}
+a{color:#3DDC97}a:hover{color:#7EF0BE}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #E6EDF3; height: 100vh; min-height: 760px; display: flex; flex-direction: column; font-size: 14px; line-height: 1.5">
+
+<header style="background: rgba(10,14,20,0.9); border-bottom: 1px solid #1F2A3A; padding: 8px 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+<a href="Main.dc.html" aria-label="Bosh sahifa" style="width: 30px; height: 30px; border-radius: 8px; background: #3DDC97; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(61,220,151,0.45)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#04130C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg></a>
+<nav aria-label="Yo'l" style="display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #94A3B8">
+<a href="Tasks.dc.html" style="color: #94A3B8; text-decoration: none">tasks</a><span>/</span><span style="color: #E6EDF3">systemd-service</span>
+</nav>
+<div style="display: flex; gap: 3px; margin-left: 6px" aria-label="Vazifa 3 / 6">
+<span style="width: 16px; height: 5px; border-radius: 2px; background: #3DDC97"></span><span style="width: 16px; height: 5px; border-radius: 2px; background: #3DDC97"></span><span style="width: 16px; height: 5px; border-radius: 2px; background: #38BDF8"></span><span style="width: 16px; height: 5px; border-radius: 2px; background: #243247"></span><span style="width: 16px; height: 5px; border-radius: 2px; background: #243247"></span><span style="width: 16px; height: 5px; border-radius: 2px; background: #243247"></span>
+</div>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; background: rgba(61,220,151,0.1); border: 1px solid rgba(61,220,151,0.35); color: #3DDC97; font-family: 'JetBrains Mono', monospace; font-size: 13px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #3DDC97; box-shadow: 0 0 8px #3DDC97"></span>sessiya 47:12</span>
+<button type="button" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #243247; border-radius: 8px; background: #0F1520; font: inherit; font-weight: 500; color: #C9D4E0; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"></path></svg>Qayta yaratish</button>
+<button type="button" style="height: 36px; padding: 0 12px; border: 1px solid rgba(248,113,113,0.4); border-radius: 8px; background: rgba(248,113,113,0.08); font: inherit; font-weight: 500; color: #F87171; cursor: pointer">Tugatish</button>
+</div>
+</header>
+
+<div style="flex: 1; min-height: 0; display: flex; flex-wrap: wrap">
+
+<section aria-label="Topshiriq" style="flex: 1 1 380px; max-width: 470px; min-width: 0; background: rgba(13,18,27,0.94); border-right: 1px solid #1F2A3A; display: flex; flex-direction: column; min-height: 0">
+<div style="position: relative">
+<img src="assets/cover-systemd.svg" alt="" style="display: block; width: 100%; height: 104px; object-fit: cover">
+<div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 20px; background: linear-gradient(to top, rgba(13,18,27,1), rgba(13,18,27,0))">
+<div style="font-size: 12px; color: #C9D4E0; font-family: 'JetBrains Mono', monospace">03 · Linux · O'rta · +30 xp</div>
+<h1 style="margin: 0; font-size: 18px; font-weight: 600">Systemd Service Creation</h1>
+</div>
+</div>
+<div role="tablist" aria-label="Panel" style="display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid #1F2A3A">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+</sc-for>
+</div>
+
+<div style="flex: 1; overflow-y: auto; padding: 20px 20px 28px">
+<sc-if value="{{showTask}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<p style="margin: 0; color: #C9D4E0">Oddiy skriptni systemd xizmatiga aylantiring: tizim qayta yuklanganda u avtomatik ishga tushishi kerak.</p>
+<div>
+<h2 style="margin: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #94A3B8"># qadamlar</h2>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+<li style="display: flex; gap: 12px; padding: 10px 12px; background: #0B1018; border: 1px solid #1A2332; border-radius: 10px"><span style="font-family: 'JetBrains Mono', monospace; color: #3DDC97">01</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #A78BFA">/usr/local/bin/myapp.sh</code> skriptini yarating</span></li>
+<li style="display: flex; gap: 12px; padding: 10px 12px; background: #0B1018; border: 1px solid #1A2332; border-radius: 10px"><span style="font-family: 'JetBrains Mono', monospace; color: #3DDC97">02</span><span>Skriptga bajarish huquqini bering</span></li>
+<li style="display: flex; gap: 12px; padding: 10px 12px; background: #0B1018; border: 1px solid #1A2332; border-radius: 10px"><span style="font-family: 'JetBrains Mono', monospace; color: #3DDC97">03</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #A78BFA">/etc/systemd/system/myapp.service</code> unit faylini yozing</span></li>
+<li style="display: flex; gap: 12px; padding: 10px 12px; background: #0B1018; border: 1px solid #1A2332; border-radius: 10px"><span style="font-family: 'JetBrains Mono', monospace; color: #3DDC97">04</span><span>Xizmatni yoqing (enable) va ishga tushiring</span></li>
+</ol>
+</div>
+<div>
+<h2 style="margin: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #94A3B8"># avtomatik tekshiruvlar</h2>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #C9D4E0">
+<li><span style="color: #3DDC97">[✓]</span> myapp.service fayli mavjud</li>
+<li><span style="color: #3DDC97">[✓]</span> ExecStart to'g'ri yozilgan</li>
+<li><span style="color: #94A3B8">[ ]</span> skript bajariladigan</li>
+<li><span style="color: #94A3B8">[ ]</span> xizmat yoqilgan (enabled)</li>
+</ul>
+</div>
+<p style="margin: 0; padding: 12px 14px; background: rgba(245,179,66,0.08); border: 1px solid rgba(245,179,66,0.3); border-radius: 10px; color: #F5D9A3; font-size: 13px">Qiyin bo'lsa, <strong>Maslahatlar</strong>ni oching — ular bittadan ochiladi, o'zingiz o'ylashga imkon qoladi.</p>
+</div>
+</sc-if>
+
+<sc-if value="{{showHints}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0 0 4px; color: #94A3B8; font-size: 13px">{{hintsOpen}} / 4 ochildi · maslahatlar ballga ta'sir qilmaydi</p>
+<sc-for list="{{hints}}" as="h" hint-placeholder-count="4">
+<div style="border: 1px solid #1F2A3A; border-radius: 10px; overflow: hidden; background: #0F1520">
+<div style="padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px">
+<span style="font-weight: 500">{{h.title}}</span>
+<sc-if value="{{h.closed}}" hint-placeholder-val="{{true}}"><button type="button" onClick="{{h.open}}" disabled="{{h.blocked}}" style="{{h.btnStyle}}">Ochish</button></sc-if>
+</div>
+<sc-if value="{{h.shown}}" hint-placeholder-val="{{false}}">
+<pre style="margin: 0; padding: 12px 14px; background: #070A0F; border-top: 1px solid #1F2A3A; color: #3DDC97; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap">{{h.code}}</pre>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{showResults}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700">{{score}}</span>
+<span style="color: #94A3B8; font-size: 13px">{{attemptLabel}}</span>
+</div>
+<div style="height: 6px; background: #1A2332; border-radius: 999px; overflow: hidden"><div style="{{barStyle}}"></div></div>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{results}}" as="r" hint-placeholder-count="4">
+<li style="{{r.style}}">
+<sc-if value="{{r.ok}}" hint-placeholder-val="{{true}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3DDC97" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="O'tdi" style="flex: none"><path d="M5 12l5 5 9-10"></path></svg></sc-if>
+<sc-if value="{{r.fail}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2.4" stroke-linecap="round" role="img" aria-label="O'tmadi" style="flex: none"><path d="M6 6l12 12M18 6L6 18"></path></svg></sc-if>
+<span style="flex: 1"><span style="display: block; font-weight: 500">{{r.name}}</span><span style="display: block; font-size: 12.5px; color: #94A3B8; font-family: 'JetBrains Mono', monospace">{{r.tip}}</span></span>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{allPassed}}" hint-placeholder-val="{{false}}">
+<a href="Tasks.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 10px; background: #3DDC97; color: #04130C; text-decoration: none; font-weight: 600">Keyingi vazifa →</a>
+</sc-if>
+</div>
+</sc-if>
+</div>
+</section>
+
+<section aria-label="Terminal" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; background: #070A0F; min-height: 420px">
+<div style="display: flex; align-items: stretch; border-bottom: 1px solid #1A2332; background: #0B1018">
+<span style="display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 40px; border-right: 1px solid #1A2332; background: #070A0F; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #E6EDF3; box-shadow: inset 0 2px 0 #3DDC97"><span style="color: #3DDC97">❯</span> bash — root@lab-3f9a</span>
+<button type="button" aria-label="Yangi terminal oynasi" style="width: 40px; border: 0; background: transparent; color: #94A3B8; cursor: pointer; font-size: 18px">+</button>
+<span style="margin-left: auto; display: flex; align-items: center; padding: 0 14px; color: #94A3B8; font-size: 12px">Ctrl+Shift+C / V</span>
+</div>
+<pre style="flex: 1; margin: 0; padding: 16px 20px; overflow: auto; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.7; color: #C9D4E0; white-space: pre-wrap"><span style="color: #3DDC97">root@lab-3f9a</span>:<span style="color: #38BDF8">~</span># cat /usr/local/bin/myapp.sh
+<span style="color: #94A3B8">#!/bin/bash</span>
+<span style="color: #A78BFA">while</span> true; <span style="color: #A78BFA">do</span> echo <span style="color: #F5B342">"myapp alive"</span>; sleep 30; <span style="color: #A78BFA">done</span>
+<span style="color: #3DDC97">root@lab-3f9a</span>:<span style="color: #38BDF8">~</span># cat /etc/systemd/system/myapp.service
+<span style="color: #38BDF8">[Unit]</span>
+Description=My App
+
+<span style="color: #38BDF8">[Service]</span>
+ExecStart=/usr/local/bin/myapp.sh
+Restart=always
+
+<span style="color: #38BDF8">[Install]</span>
+WantedBy=multi-user.target
+<span style="color: #3DDC97">root@lab-3f9a</span>:<span style="color: #38BDF8">~</span># systemctl is-enabled myapp
+<span style="color: #F87171">disabled</span>
+<span style="color: #3DDC97">root@lab-3f9a</span>:<span style="color: #38BDF8">~</span># <span style="background: #3DDC97; color: #070A0F"> </span></pre>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid #1A2332; background: #0B1018; flex-wrap: wrap">
+<span style="color: #94A3B8; font-size: 13px">Tayyor bo'lsangiz — tekshiring. Urinishlar cheklanmagan.</span>
+<button type="button" onClick="{{runCheck}}" style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 10px; background: #3DDC97; color: #04130C; font: inherit; font-weight: 600; cursor: pointer; box-shadow: 0 0 24px rgba(61,220,151,0.35)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"></path></svg>
+Yechimni tekshirish</button>
+</div>
+</section>
+</div>
+
+<footer style="display: flex; gap: 18px; flex-wrap: wrap; padding: 5px 16px; background: #0F2A20; border-top: 1px solid #1B4A37; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A7F3D0">
+<span>● connected</span><span>ubuntu:22.04</span><span>cpu 2%</span><span>mem 64 MB</span><span style="margin-left: auto">ws://lab · utf-8</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { tab: 'task', hints: 1, attempt: 2, fixed: false }; }
+  renderVals() {
+    const st = this.state;
+    const tabStyle = (on) => 'height:42px;padding:0 12px;border:0;background:transparent;font:inherit;font-weight:500;cursor:pointer;margin-bottom:-1px;border-bottom:2px solid ' + (on ? '#3DDC97;color:#E6EDF3' : 'transparent;color:#94A3B8');
+    const H = [
+      { title: '1. Skriptni bajariladigan qilish', code: '$ chmod +x /usr/local/bin/myapp.sh\n$ ls -l /usr/local/bin/myapp.sh' },
+      { title: '2. Unit faylining tuzilishi', code: '[Unit]    — tavsif\n[Service] — ExecStart, Restart\n[Install] — WantedBy=multi-user.target' },
+      { title: '3. systemd ni yangilash', code: '$ systemctl daemon-reload' },
+      { title: '4. Xizmatni yoqish', code: '$ systemctl enable --now myapp\n$ systemctl status myapp' }
+    ];
+    const base = [
+      { name: 'myapp.service fayli mavjud', ok: true, tip: 'found /etc/systemd/system/myapp.service' },
+      { name: 'ExecStart to‘g‘ri yozilgan', ok: true, tip: 'ExecStart=/usr/local/bin/myapp.sh' },
+      { name: 'Skript bajariladigan', ok: st.fixed, tip: st.fixed ? '-rwxr-xr-x myapp.sh' : '-rw-r--r-- → chmod +x kerak (1-maslahat)' },
+      { name: 'Xizmat yoqilgan (enabled)', ok: st.fixed, tip: st.fixed ? 'is-enabled: enabled' : 'is-enabled: disabled (4-maslahat)' }
+    ];
+    const passed = base.filter(r => r.ok).length;
+    return {
+      tabs: [['task', 'Topshiriq'], ['hints', 'Maslahatlar'], ['results', 'Natija']].map(([k, l]) => ({ label: l, on: st.tab === k, style: tabStyle(st.tab === k), pick: () => this.setState({ tab: k }) })),
+      showTask: st.tab === 'task', showHints: st.tab === 'hints', showResults: st.tab === 'results',
+      hintsOpen: st.hints,
+      hints: H.map((h, i) => ({ ...h, shown: i < st.hints, closed: i >= st.hints, blocked: i > st.hints,
+        btnStyle: 'height:32px;padding:0 12px;border:1px solid #2A3850;border-radius:7px;background:#141C2A;font:inherit;font-weight:500;cursor:pointer;color:' + (i > st.hints ? '#64748B' : '#3DDC97'),
+        open: () => this.setState({ hints: i + 1 }) })),
+      results: base.map(r => ({ ...r, fail: !r.ok, style: 'display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:#0F1520;border:1px solid ' + (r.ok ? 'rgba(61,220,151,.3)' : 'rgba(248,113,113,.35)') })),
+      allPassed: passed === 4,
+      score: passed + '/4 passed',
+      attemptLabel: st.attempt + '-urinish · hozirgina',
+      barStyle: 'height:100%;border-radius:999px;background:' + (passed === 4 ? '#3DDC97' : '#38BDF8') + ';width:' + (passed * 25) + '%',
+      runCheck: () => this.setState({ tab: 'results', attempt: st.attempt + 1, fixed: st.attempt >= 2 })
+    };
+  }
+}
+</script>
+</body>
+</html>

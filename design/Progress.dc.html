@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Natijalar — DevOps Journey Lab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0A0E14 url(assets/wallpaper.svg) center top / cover fixed}
+a{color:#3DDC97}a:hover{color:#7EF0BE}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #E6EDF3; min-height: 100vh; font-size: 14px; line-height: 1.5">
+
+<header style="background: rgba(10,14,20,0.82); backdrop-filter: blur(12px); border-bottom: 1px solid #1F2A3A">
+<div style="max-width: 1320px; margin: 0 auto; padding: 10px 24px; min-height: 44px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">
+<span style="width: 30px; height: 30px; border-radius: 8px; background: #3DDC97; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(61,220,151,0.45)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#04130C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg></span>
+<span>devops_journey<span style="color: #94A3B8">/lab</span></span>
+</a>
+<nav aria-label="Asosiy menyu" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a href="Main.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Bosh sahifa</a>
+<a href="Tasks.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Vazifalar</a>
+<a href="Workspace.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Laboratoriya</a>
+<a href="Progress.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #E6EDF3; background: #141C2A; box-shadow: inset 0 0 0 1px #243247; font-weight: 500"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3DDC97"></span>Natijalar</a>
+<a href="Leaderboard.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Reyting</a>
+</nav>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+<a href="Profile.dc.html" aria-label="Profil" style="width: 38px; height: 38px; border-radius: 50%; background: #141C2A; border: 1.5px solid #3DDC97; color: #E6EDF3; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 600; font-size: 13px; box-sizing: border-box">SA</a>
+</div>
+</div>
+</header>
+
+<main style="max-width: 1320px; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+<div>
+<p style="margin: 0 0 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #94A3B8"><span style="color: #3DDC97">$</span> cat progress.json</p>
+<h1 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; letter-spacing: -0.02em">Natijalar</h1>
+</div>
+<button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 1px solid #2A3850; border-radius: 10px; background: #0F1520; font: inherit; font-weight: 500; color: #E6EDF3; cursor: pointer">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>
+Sertifikat (PDF)</button>
+</div>
+
+<section aria-label="Umumiy ko'rsatkichlar" style="background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 16px; padding: 26px 28px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center">
+<div style="flex: 1 1 280px; display: flex; gap: 22px; align-items: center">
+<div role="img" aria-label="31 foiz yakunlandi" style="width: 116px; height: 116px; flex: none; border-radius: 50%; background: conic-gradient(#3DDC97 0 31%, #1A2332 31% 100%); display: flex; align-items: center; justify-content: center">
+<div style="width: 92px; height: 92px; border-radius: 50%; background: #0F1520; display: flex; flex-direction: column; align-items: center; justify-content: center">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700">31%</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="color: #94A3B8">Umumiy progress</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #3DDC97">55 / 175 xp</span>
+<span style="font-size: 13px; color: #94A3B8">2 / 6 vazifa yakunlandi</span>
+</div>
+</div>
+<div style="flex: 2 1 480px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px">
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 12px; padding: 14px 16px"><div style="font-size: 12.5px; color: #94A3B8">Urinishlar</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #38BDF8">7</div></div>
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 12px; padding: 14px 16px"><div style="font-size: 12.5px; color: #94A3B8">Birinchi urinishda</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #A78BFA">1</div></div>
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 12px; padding: 14px 16px"><div style="font-size: 12.5px; color: #94A3B8">Terminalda</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #2DD4BF">3s 40d</div></div>
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 12px; padding: 14px 16px"><div style="font-size: 12.5px; color: #94A3B8">Ketma-ket kunlar</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #F5B342">4</div></div>
+</div>
+</section>
+
+<section aria-labelledby="tbl" style="background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 16px; overflow: hidden">
+<div style="padding: 18px 24px; border-bottom: 1px solid #1A2332"><h2 id="tbl" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600">Vazifalar bo'yicha</h2></div>
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 820px; border-collapse: collapse">
+<thead>
+<tr style="text-align: left; font-size: 12px; color: #94A3B8; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em">
+<th scope="col" style="padding: 12px 24px; font-weight: 500">Vazifa</th>
+<th scope="col" style="padding: 12px 16px; font-weight: 500">Holat</th>
+<th scope="col" style="padding: 12px 16px; font-weight: 500">Ball</th>
+<th scope="col" style="padding: 12px 16px; font-weight: 500">Urinish</th>
+<th scope="col" style="padding: 12px 16px; font-weight: 500">Vaqt</th>
+<th scope="col" style="padding: 12px 24px 12px 16px; font-weight: 500">Sana</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+<tr style="border-top: 1px solid #1A2332">
+<td style="padding: 12px 24px"><a href="Workspace.dc.html" style="display: flex; align-items: center; gap: 12px; color: #E6EDF3; text-decoration: none; font-weight: 500"><img src="{{r.cover}}" alt="" style="width: 64px; height: 30px; object-fit: cover; object-position: right center; border-radius: 6px; border: 1px solid #1F2A3A">{{r.title}}</a></td>
+<td style="padding: 12px 16px"><span style="{{r.badge}}">{{r.status}}</span></td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px">{{r.score}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px">{{r.attempts}}</td>
+<td style="padding: 12px 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px">{{r.time}}</td>
+<td style="padding: 12px 24px 12px 16px; color: #94A3B8">{{r.date}}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+<section aria-labelledby="sk" style="flex: 1 1 340px; background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 16px; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 id="sk" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600">Ko'nikmalar</h2>
+<sc-for list="{{skills}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between"><span>{{s.name}}</span><span style="color: #94A3B8; font-size: 13px; font-family: 'JetBrains Mono', monospace">{{s.label}}</span></div>
+<div style="height: 8px; background: #1A2332; border-radius: 999px; overflow: hidden"><div style="{{s.bar}}"></div></div>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="ach" style="flex: 999 1 560px; min-width: 0; background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 16px; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="ach" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600">Yutuqlar <span style="font-weight: 400; color: #94A3B8">3/10</span></h2>
+<div role="group" aria-label="Yutuqlar filtri" style="display: flex; gap: 4px; padding: 4px; background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px">
+<button type="button" aria-pressed="{{allOn}}" onClick="{{showAll}}" style="{{allStyle}}">Hammasi</button>
+<button type="button" aria-pressed="{{earnedOn}}" onClick="{{showEarned}}" style="{{earnedStyle}}">Olingan</button>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px">
+<sc-for list="{{badges}}" as="b" hint-placeholder-count="10">
+<div style="{{b.card}}">
+<span style="{{b.icon}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{b.path}}"></path></svg></span>
+<span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 600">{{b.name}}</span><span style="display: block; font-size: 12.5px; color: #94A3B8">{{b.desc}}</span></span>
+</div>
+</sc-for>
+</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1220}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { earnedOnly: false }; }
+  renderVals() {
+    const C = { nginx: 'assets/cover-nginx.svg', docker: 'assets/cover-docker.svg', systemd: 'assets/cover-systemd.svg', users: 'assets/cover-users.svg', firewall: 'assets/cover-firewall.svg', cron: 'assets/cover-cron.svg' };
+    const B = { done: 'color:#3DDC97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.3)', active: 'color:#38BDF8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3)', open: 'color:#C9D4E0;background:#141C2A;border:1px solid #243247', locked: 'color:#94A3B8;border:1px dashed #2A3850' };
+    const L = { done: 'Yakunlangan', active: 'Jarayonda', open: 'Yangi', locked: 'Qulflangan' };
+    const rows = [
+      ['Nginx Web Server Setup', 'nginx', 'done', '25/25', '1', '18 daq', '1-noyabr'],
+      ['Docker Container Management', 'docker', 'done', '30/30', '3', '1s 12d', '2-noyabr'],
+      ['Systemd Service Creation', 'systemd', 'active', '15/30', '3', '52 daq', '—'],
+      ['Linux User & Permission Management', 'users', 'open', '—/25', '0', '—', '—'],
+      ['UFW Firewall Configuration', 'firewall', 'open', '—/30', '0', '—', '—'],
+      ['Cron Job & Backup Automation', 'cron', 'locked', '—/35', '0', '—', '—']
+    ].map(([title, c, st, score, attempts, time, date]) => ({ title, cover: C[c], status: L[st], score, attempts, time, date,
+      badge: 'font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;' + B[st] }));
+    const skills = [['Linux', 40, '40/110', '#3DDC97'], ['Docker', 100, '30/30', '#38BDF8'], ['Xavfsizlik', 0, '0/30', '#FB7185'], ['Avtomatlashtirish', 0, '0/35', '#2DD4BF']]
+      .map(([name, p, label, c]) => ({ name, label, bar: 'height:100%;border-radius:999px;background:' + c + ';box-shadow:0 0 10px ' + c + '80;width:' + p + '%' }));
+    const P = { star: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z', box: 'M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10', bolt: 'M13 2L4 14h7l-1 8 9-12h-7z', eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z', term: 'M5 7l5 5-5 5M13 17h6', shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', clock: 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z', fire: 'M12 3c1 4 5 5 5 10a5 5 0 01-10 0c0-3 2-4 2-7 1 1 2 2 3-3z', zap: 'M13 2L4 14h7l-1 8 9-12h-7z', flag: 'M5 21V4h11l-2 4 2 4H5' };
+    const all = [
+      ['Birinchi qadam', 'Birinchi vazifani yakunlang', true, 'star', '#3DDC97'],
+      ['Birinchi konteyner', 'Docker vazifasini yakunlang', true, 'box', '#38BDF8'],
+      ['Bir urinishda', 'Birinchi urinishda yeching', true, 'bolt', '#F5B342'],
+      ['Maslahatsiz', 'Maslahat ochmasdan yakunlang', false, 'eye', '#A78BFA'],
+      ['Linux ustasi', 'Barcha Linux vazifalari', false, 'term', '#3DDC97'],
+      ['Qal‘a', 'UFW vazifasini yakunlang', false, 'shield', '#FB7185'],
+      ['Avtomatchi', 'Cron vazifasini yakunlang', false, 'clock', '#2DD4BF'],
+      ['Haftalik ritm', '7 kun ketma-ket', false, 'fire', '#F5B342'],
+      ['Tezkor', '15 daqiqada yakunlang', false, 'zap', '#38BDF8'],
+      ['DevOps Journey', 'Barcha 6 vazifa', false, 'flag', '#A78BFA']
+    ];
+    const tab = (on) => 'height:32px;padding:0 12px;border:0;border-radius:7px;font:inherit;font-weight:500;cursor:pointer;' + (on ? 'background:#1B2535;color:#E6EDF3;box-shadow:inset 0 0 0 1px #2A3850' : 'background:transparent;color:#94A3B8');
+    const eo = this.state.earnedOnly;
+    return {
+      rows, skills,
+      badges: all.filter(b => !eo || b[2]).map(([name, desc, got, ic, c]) => ({ name, desc, path: P[ic],
+        card: 'display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;' + (got ? 'background:#0B1018;border:1px solid ' + c + '55' : 'background:transparent;border:1px dashed #2A3850;opacity:.75'),
+        icon: 'width:38px;height:38px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center;' + (got ? 'color:' + c + ';background:' + c + '1F;box-shadow:0 0 14px ' + c + '40' : 'color:#94A3B8;background:#141C2A') })),
+      allOn: !eo, earnedOn: eo, allStyle: tab(!eo), earnedStyle: tab(eo),
+      showAll: () => this.setState({ earnedOnly: false }), showEarned: () => this.setState({ earnedOnly: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

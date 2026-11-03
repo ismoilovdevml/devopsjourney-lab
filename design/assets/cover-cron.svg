@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 140" width="320" height="140">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D2F2E"/><stop offset="1" stop-color="#0B121C"/></linearGradient>
+<pattern id="d" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#17403E"/></pattern></defs>
+<rect width="320" height="140" fill="url(#g)"/><rect width="320" height="140" fill="url(#d)"/>
+<g fill="none" stroke="#2DD4BF" stroke-width="2.5" stroke-linecap="round"><circle cx="238" cy="70" r="40"/><path d="M238 46v24l16 10"/><path d="M286 54a52 52 0 0 1 0 32" stroke-opacity="0.5"/><path d="M190 86a52 52 0 0 1 0-32" stroke-opacity="0.5"/></g>
+<g fill="#2DD4BF"><circle cx="238" cy="36" r="2.5"/><circle cx="272" cy="70" r="2.5"/><circle cx="238" cy="104" r="2.5"/><circle cx="204" cy="70" r="2.5"/></g>
+<g font-family="ui-monospace, Menlo, monospace" font-size="12"><text x="20" y="54" fill="#2DD4BF">$ crontab -e</text><text x="20" y="74" fill="#C9D4E0">0 2 * * * backup.sh</text><text x="20" y="94" fill="#94A3B8">backup-0211.tar.gz</text></g>
+</svg>

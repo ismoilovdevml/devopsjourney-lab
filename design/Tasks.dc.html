@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Vazifalar — DevOps Journey Lab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0A0E14 url(assets/wallpaper.svg) center top / cover fixed}
+a{color:#3DDC97}a:hover{color:#7EF0BE}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #E6EDF3; min-height: 100vh; font-size: 14px; line-height: 1.5">
+
+<header style="background: rgba(10,14,20,0.82); backdrop-filter: blur(12px); border-bottom: 1px solid #1F2A3A">
+<div style="max-width: 1320px; margin: 0 auto; padding: 10px 24px; min-height: 44px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">
+<span style="width: 30px; height: 30px; border-radius: 8px; background: #3DDC97; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(61,220,151,0.45)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#04130C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg></span>
+<span>devops_journey<span style="color: #94A3B8">/lab</span></span>
+</a>
+<nav aria-label="Asosiy menyu" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a href="Main.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Bosh sahifa</a>
+<a href="Tasks.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #E6EDF3; background: #141C2A; box-shadow: inset 0 0 0 1px #243247; font-weight: 500"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3DDC97"></span>Vazifalar</a>
+<a href="Workspace.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Laboratoriya</a>
+<a href="Progress.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Natijalar</a>
+<a href="Leaderboard.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Reyting</a>
+</nav>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+<a href="Workspace.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 8px; background: rgba(61,220,151,0.1); border: 1px solid rgba(61,220,151,0.35); color: #3DDC97; text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 13px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #3DDC97; box-shadow: 0 0 8px #3DDC97"></span>47:12</a>
+<a href="Profile.dc.html" aria-label="Profil" style="width: 38px; height: 38px; border-radius: 50%; background: #141C2A; border: 1.5px solid #3DDC97; color: #E6EDF3; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 600; font-size: 13px; box-sizing: border-box">SA</a>
+</div>
+</div>
+</header>
+
+<main style="max-width: 1320px; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+<div>
+<p style="margin: 0 0 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #94A3B8"><span style="color: #3DDC97">$</span> ls ./tasks</p>
+<h1 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; letter-spacing: -0.02em">Vazifalar</h1>
+<p style="margin: 4px 0 0; color: #94A3B8">Har bir vazifa alohida Linux konteynerida bajariladi va avtomatik tekshiriladi.</p>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #94A3B8">
+<span style="display: flex; gap: 3px"><span style="width: 18px; height: 6px; border-radius: 2px; background: #3DDC97"></span><span style="width: 18px; height: 6px; border-radius: 2px; background: #3DDC97"></span><span style="width: 18px; height: 6px; border-radius: 2px; background: #38BDF8"></span><span style="width: 18px; height: 6px; border-radius: 2px; background: #243247"></span><span style="width: 18px; height: 6px; border-radius: 2px; background: #243247"></span><span style="width: 18px; height: 6px; border-radius: 2px; background: #243247"></span></span>
+2/6 done
+</div>
+</div>
+
+<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 12px; background: rgba(15,21,32,0.8); border: 1px solid #1F2A3A; border-radius: 14px">
+<label style="position: relative; flex: 1 1 260px; max-width: 380px; display: block">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Vazifa qidirish</span>
+<span style="position: absolute; left: 12px; top: 11px; font-family: 'JetBrains Mono', monospace; color: #3DDC97">&gt;</span>
+<input type="search" placeholder="grep vazifa yoki mavzu…" value="{{query}}" onInput="{{onQuery}}" style="width: 100%; box-sizing: border-box; height: 42px; padding: 0 12px 0 30px; border: 1px solid #243247; border-radius: 9px; background: #0B1018; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #E6EDF3">
+</label>
+<div role="group" aria-label="Holat bo'yicha" style="display: flex; gap: 4px; padding: 4px; background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; flex-wrap: wrap">
+<sc-for list="{{statusTabs}}" as="f" hint-placeholder-count="4">
+<button type="button" onClick="{{f.pick}}" aria-pressed="{{f.on}}" style="{{f.style}}">{{f.label}}</button>
+</sc-for>
+</div>
+<div role="group" aria-label="Daraja bo'yicha" style="display: flex; gap: 4px; padding: 4px; background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; flex-wrap: wrap">
+<sc-for list="{{levelTabs}}" as="f" hint-placeholder-count="4">
+<button type="button" onClick="{{f.pick}}" aria-pressed="{{f.on}}" style="{{f.style}}">{{f.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+
+<section aria-label="Vazifalar ro'yxati" style="flex: 999 1 620px; min-width: 0">
+<sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+<div style="background: rgba(15,21,32,0.8); border: 1px dashed #2A3850; border-radius: 14px; padding: 40px; text-align: center; color: #94A3B8; font-family: 'JetBrains Mono', monospace">0 results. Filtrlarni o'zgartirib ko'ring.</div>
+</sc-if>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px">
+<sc-for list="{{list}}" as="t" hint-placeholder-count="6">
+<button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="{{t.cardStyle}}">
+<span style="position: relative; display: block">
+<img src="{{t.cover}}" alt="" style="display: block; width: 100%; aspect-ratio: 320 / 140; object-fit: cover">
+<span style="position: absolute; top: 10px; left: 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #E6EDF3; background: rgba(10,14,20,0.75); padding: 2px 8px; border-radius: 6px">0{{t.n}}</span>
+<span style="{{t.badgeStyle}}">{{t.statusLabel}}</span>
+</span>
+<span style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px">
+<span style="font-size: 15px; font-weight: 600; color: #E6EDF3">{{t.title}}</span>
+<span style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #94A3B8">
+<span style="padding: 2px 8px; border-radius: 6px; background: #141C2A">{{t.cat}}</span>
+<span style="{{t.levelStyle}}">{{t.level}}</span>
+<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; color: #3DDC97">+{{t.points}} xp</span>
+</span>
+</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<aside aria-labelledby="dt" style="flex: 1 1 360px; background: rgba(15,21,32,0.9); border: 1px solid #1F2A3A; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column">
+<img src="{{sel.cover}}" alt="" style="display: block; width: 100%; aspect-ratio: 320 / 140; object-fit: cover">
+<div style="padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 18px">
+<div>
+<p style="margin: 0 0 6px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #94A3B8">tasks/{{sel.id}}</p>
+<h2 id="dt" style="margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.01em">{{sel.title}}</h2>
+</div>
+<p style="margin: 0; color: #C9D4E0">{{sel.desc}}</p>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; padding: 10px 12px"><div style="font-size: 12px; color: #94A3B8">Ball</div><div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #3DDC97">{{sel.points}} xp</div></div>
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; padding: 10px 12px"><div style="font-size: 12px; color: #94A3B8">Tekshiruv</div><div style="font-family: 'JetBrains Mono', monospace; font-weight: 600">{{sel.checksN}}</div></div>
+<div style="background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; padding: 10px 12px"><div style="font-size: 12px; color: #94A3B8">Image</div><div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px">ubuntu:22.04</div></div>
+</div>
+<div>
+<h3 style="margin: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #94A3B8"># nima tekshiriladi</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{sel.checks}}" as="c" hint-placeholder-count="4">
+<li style="display: flex; gap: 10px; align-items: center; padding: 9px 12px; background: #0B1018; border: 1px solid #1A2332; border-radius: 8px; font-size: 13.5px"><span style="font-family: 'JetBrains Mono', monospace; color: #3DDC97">[ ]</span><span>{{c}}</span></li>
+</sc-for>
+</ol>
+</div>
+<sc-if value="{{sel.isLocked}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; gap: 10px; align-items: center; padding: 12px 14px; border: 1px dashed #2A3850; border-radius: 10px; color: #C9D4E0">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5B342" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 018 0v3"></path></svg>
+Ochish uchun avvalgi vazifalarni yakunlang
+</div>
+</sc-if>
+<sc-if value="{{sel.canStart}}" hint-placeholder-val="{{true}}">
+<a href="Workspace.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 10px; background: #3DDC97; color: #04130C; text-decoration: none; font-weight: 600; box-shadow: 0 0 24px rgba(61,220,151,0.3)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg>
+{{sel.cta}}</a>
+</sc-if>
+<p style="margin: 0; font-size: 12.5px; color: #94A3B8">Sessiya 60 daqiqa. Konteyner tugagach o'chiriladi — natijalar saqlanadi.</p>
+</div>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { status: 'all', level: 'all', query: '', selected: 'systemd-service' }; }
+  renderVals() {
+    const C = { nginx: 'assets/cover-nginx.svg', docker: 'assets/cover-docker.svg', systemd: 'assets/cover-systemd.svg', users: 'assets/cover-users.svg', firewall: 'assets/cover-firewall.svg', cron: 'assets/cover-cron.svg' };
+    const T = [
+      { id: 'nginx-health', c: 'nginx', n: 1, title: 'Nginx Web Server Setup', cat: 'Linux · Web', level: 'Oson', points: 25, st: 'done', desc: 'Nginx o‘rnatilgan serverda oddiy sahifani joylashtiring va u HTTP orqali ochilishini ta’minlang.', checks: ['index.html mavjud', 'Fayl mazmuni “ok”', 'Nginx ishlayapti', 'Sahifa HTTP orqali ochiladi'] },
+      { id: 'docker-basics', c: 'docker', n: 2, title: 'Docker Container Management', cat: 'Docker', level: 'O‘rta', points: 30, st: 'done', desc: 'Image pull qiling, konteyner ishga tushiring va nginx ni 80-portda oching.', checks: ['Docker xizmati ishlayapti', 'myapp konteyneri mavjud', 'Konteyner nginx ni ishlatyapti', '80-port ochilgan'] },
+      { id: 'systemd-service', c: 'systemd', n: 3, title: 'Systemd Service Creation', cat: 'Linux', level: 'O‘rta', points: 30, st: 'active', desc: 'Skriptni systemd xizmatiga aylantiring va tizim yuklanganda avtomatik ishga tushiring.', checks: ['myapp.service fayli mavjud', 'ExecStart to‘g‘ri yozilgan', 'Skript mavjud va bajariladigan', 'Xizmat yoqilgan (enabled)'] },
+      { id: 'user-management', c: 'users', n: 4, title: 'Linux User & Permission Management', cat: 'Linux', level: 'Oson', points: 25, st: 'open', desc: 'Foydalanuvchi yarating, sudo guruhiga qo‘shing va katalog huquqlarini sozlang.', checks: ['devops foydalanuvchisi mavjud', 'Foydalanuvchi sudo guruhida', '/opt/app katalogi mavjud', '/opt/app egasi devops', '/opt/app huquqlari 755'] },
+      { id: 'firewall-config', c: 'firewall', n: 5, title: 'UFW Firewall Configuration', cat: 'Xavfsizlik', level: 'O‘rta', points: 30, st: 'open', desc: 'UFW ni o‘rnating, kerakli portlarni oching va firewall ni yoqing.', checks: ['UFW o‘rnatilgan', 'SSH (22) ruxsat etilgan', 'HTTP (80) ruxsat etilgan', 'HTTPS (443) ruxsat etilgan', 'UFW faol'] },
+      { id: 'cron-backup', c: 'cron', n: 6, title: 'Cron Job & Backup Automation', cat: 'Avtomatlashtirish', level: 'Qiyin', points: 35, st: 'locked', desc: 'Zaxira nusxa skriptini yozing va uni cron orqali muntazam ishga tushiring.', checks: ['Backup skripti mavjud', 'Skript bajariladigan', 'Crontab yozuvi mavjud', 'Backup katalogi mavjud', 'Skript zaxira nusxa yaratadi'] }
+    ];
+    const S = { done: '✓ Yakunlangan', active: '● Jarayonda', open: 'Yangi', locked: 'Qulflangan' };
+    const B = { done: 'color:#04130C;background:#3DDC97', active: 'color:#04121C;background:#38BDF8', open: 'color:#E6EDF3;background:rgba(10,14,20,.75)', locked: 'color:#F5B342;background:rgba(10,14,20,.8)' };
+    const LV = { 'Oson': '#3DDC97', 'O‘rta': '#F5B342', 'Qiyin': '#FB7185' };
+    const tab = (on) => 'height:34px;padding:0 12px;border:0;border-radius:7px;font:inherit;font-weight:500;cursor:pointer;' + (on ? 'background:#1B2535;color:#E6EDF3;box-shadow:inset 0 0 0 1px #2A3850' : 'background:transparent;color:#94A3B8');
+    const st = this.state;
+    const q = st.query.trim().toLowerCase();
+    const list = T.filter(t => (st.status === 'all' || t.st === st.status || (st.status === 'open' && t.st === 'locked'))
+      && (st.level === 'all' || t.level === st.level)
+      && (!q || (t.title + ' ' + t.cat + ' ' + t.id).toLowerCase().includes(q)))
+      .map(t => ({ ...t, cover: C[t.c], on: t.id === st.selected, statusLabel: S[t.st],
+        badgeStyle: 'position:absolute;top:10px;right:10px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;' + B[t.st],
+        levelStyle: 'padding:2px 8px;border-radius:6px;background:#141C2A;color:' + LV[t.level],
+        cardStyle: 'display:block;padding:0;text-align:left;width:100%;overflow:hidden;border-radius:14px;font:inherit;cursor:pointer;background:rgba(15,21,32,.9);' + (t.id === st.selected ? 'border:1px solid #3DDC97;box-shadow:0 0 0 3px rgba(61,220,151,.15)' : 'border:1px solid #1F2A3A') + (t.st === 'locked' ? ';opacity:.7' : ''),
+        pick: () => this.setState({ selected: t.id }) }));
+    const s = T.find(t => t.id === st.selected) || T[0];
+    const cta = { done: 'Qayta ishlash', active: 'Terminalga qaytish', open: 'Laboratoriyani boshlash', locked: '' }[s.st];
+    return {
+      query: st.query,
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      statusTabs: [['all', 'Barchasi'], ['open', 'Yangi'], ['active', 'Jarayonda'], ['done', 'Yakunlangan']].map(([k, l]) => ({ label: l, on: st.status === k, style: tab(st.status === k), pick: () => this.setState({ status: k }) })),
+      levelTabs: [['all', 'Har qanday'], ['Oson', 'Oson'], ['O‘rta', 'O‘rta'], ['Qiyin', 'Qiyin']].map(([k, l]) => ({ label: l, on: st.level === k, style: tab(st.level === k), pick: () => this.setState({ level: k }) })),
+      list, empty: list.length === 0,
+      sel: { ...s, cover: C[s.c], checksN: s.checks.length, isLocked: s.st === 'locked', canStart: s.st !== 'locked', cta }
+    };
+  }
+}
+</script>
+</body>
+</html>

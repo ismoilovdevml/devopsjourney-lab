@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Profil va sozlamalar — DevOps Journey Lab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0A0E14 url(assets/wallpaper.svg) center top / cover fixed}
+a{color:#3DDC97}a:hover{color:#7EF0BE}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #E6EDF3; min-height: 100vh; font-size: 14px; line-height: 1.5">
+
+<header style="background: rgba(10,14,20,0.82); backdrop-filter: blur(12px); border-bottom: 1px solid #1F2A3A">
+<div style="max-width: 1320px; margin: 0 auto; padding: 10px 24px; min-height: 44px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">
+<span style="width: 30px; height: 30px; border-radius: 8px; background: #3DDC97; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(61,220,151,0.45)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#04130C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5"></path><path d="M13 17h6"></path></svg></span>
+<span>devops_journey<span style="color: #94A3B8">/lab</span></span>
+</a>
+<nav aria-label="Asosiy menyu" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a href="Main.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Bosh sahifa</a>
+<a href="Tasks.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Vazifalar</a>
+<a href="Workspace.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Laboratoriya</a>
+<a href="Progress.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Natijalar</a>
+<a href="Leaderboard.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #94A3B8; font-weight: 500">Reyting</a>
+</nav>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+<a href="Admin.dc.html" style="padding: 8px 12px; border-radius: 8px; text-decoration: none; color: #F5B342; font-weight: 500; border: 1px solid rgba(245,179,66,0.35)">Admin</a>
+<a href="Profile.dc.html" aria-label="Profil" aria-current="page" style="width: 38px; height: 38px; border-radius: 50%; background: #3DDC97; color: #04130C; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; font-size: 13px">SA</a>
+</div>
+</div>
+</header>
+
+<main style="max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 24px">
+
+<section aria-label="Profil kartasi" style="position: relative; overflow: hidden; border-radius: 18px; border: 1px solid #1F2A3A; background: rgba(15,21,32,0.88)">
+<img src="assets/servers.svg" alt="" style="position: absolute; right: -20px; top: -30px; width: 380px; opacity: 0.35">
+<div style="position: relative; padding: 28px 32px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap">
+<span style="width: 84px; height: 84px; border-radius: 50%; background: #141C2A; border: 2px solid #3DDC97; box-shadow: 0 0 24px rgba(61,220,151,0.35); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 700; color: #3DDC97">SA</span>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700">sardor_a</span>
+<span style="color: #94A3B8">O'quvchi · 1-noyabrdan beri · <span style="color: #3DDC97">Junior SysAdmin</span></span>
+<span style="display: flex; gap: 8px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px">
+<span style="padding: 3px 10px; border-radius: 999px; background: #141C2A; border: 1px solid #243247; color: #3DDC97">55 xp</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #141C2A; border: 1px solid #243247; color: #F5B342">#12</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #141C2A; border: 1px solid #243247; color: #A78BFA">3 yutuq</span>
+</span>
+</div>
+</div>
+</section>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+<nav aria-label="Sozlamalar bo'limlari" style="flex: 1 1 200px; max-width: 240px; display: flex; flex-direction: column; gap: 4px; padding: 8px; background: rgba(15,21,32,0.85); border: 1px solid #1F2A3A; border-radius: 14px">
+<sc-for list="{{sections}}" as="s" hint-placeholder-count="4">
+<button type="button" onClick="{{s.pick}}" aria-current="{{s.on}}" style="{{s.style}}">{{s.label}}</button>
+</sc-for>
+<a href="Login.dc.html" style="margin-top: 8px; padding: 10px 12px; border-radius: 8px; color: #F87171; text-decoration: none; font-weight: 500; border-top: 1px solid #1F2A3A">Chiqish</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0">
+
+<sc-if value="{{isProfile}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="ph" style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 20px">
+<h1 id="ph" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600">Profil</h1>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0">Foydalanuvchi nomi<input type="text" value="sardor_a" style="height: 46px; padding: 0 14px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #E6EDF3"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0">Email<input type="email" value="sardor@example.com" style="height: 46px; padding: 0 14px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #E6EDF3"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0">GitHub<input type="text" placeholder="github.com/username" style="height: 46px; padding: 0 14px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #E6EDF3"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0">Maqsad<select style="height: 46px; padding: 0 12px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font: inherit; font-size: 14px; color: #E6EDF3"><option>Junior DevOps Engineer</option><option>SysAdmin</option><option>SRE</option></select></label>
+</div>
+<div style="display: flex; justify-content: flex-end"><button type="button" style="height: 42px; padding: 0 18px; border: 0; border-radius: 10px; background: #3DDC97; color: #04130C; font: inherit; font-weight: 600; cursor: pointer">Saqlash</button></div>
+</section>
+</sc-if>
+
+<sc-if value="{{isLook}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="lh" style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 22px">
+<h1 id="lh" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600">Ko'rinish</h1>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-weight: 500">Terminal mavzusi</span>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="4">
+<button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="{{t.style}}">
+<span style="{{t.swatch}}"><span style="{{t.prompt}}">$ ls -la</span></span>
+{{t.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-weight: 500">Terminal shrifti</span>
+<div style="display: flex; gap: 4px; padding: 4px; background: #0B1018; border: 1px solid #1F2A3A; border-radius: 10px; width: max-content">
+<sc-for list="{{sizes}}" as="z" hint-placeholder-count="3">
+<button type="button" onClick="{{z.pick}}" aria-pressed="{{z.on}}" style="{{z.style}}">{{z.label}}</button>
+</sc-for>
+</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; max-width: 320px">Interfeys tili
+<select style="height: 46px; padding: 0 12px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font: inherit; font-weight: 400; color: #E6EDF3"><option>O'zbekcha</option><option>English</option><option>Русский</option></select>
+</label>
+</section>
+</sc-if>
+
+<sc-if value="{{isNotif}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="nh" style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 8px 24px">
+<h1 id="nh" style="margin: 16px 0 8px; font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600">Bildirishnomalar</h1>
+<sc-for list="{{toggles}}" as="g" hint-placeholder-count="3">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid #1A2332">
+<span><span style="display: block; font-weight: 500">{{g.label}}</span><span style="display: block; font-size: 13px; color: #94A3B8">{{g.desc}}</span></span>
+<button type="button" role="switch" aria-checked="{{g.on}}" aria-label="{{g.label}}" onClick="{{g.flip}}" style="{{g.track}}"><span style="{{g.knob}}"></span></button>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-if value="{{isSec}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="sh" style="background: rgba(15,21,32,0.88); border: 1px solid #1F2A3A; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h1 id="sh" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600">Xavfsizlik</h1>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0; max-width: 420px">Joriy parol<input type="password" style="height: 46px; padding: 0 14px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font: inherit; color: #E6EDF3"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 13px; color: #C9D4E0; max-width: 420px">Yangi parol<input type="password" style="height: 46px; padding: 0 14px; border: 1px solid #243247; border-radius: 10px; background: #0B1018; font: inherit; color: #E6EDF3"></label>
+<button type="button" style="align-self: flex-start; height: 42px; padding: 0 18px; border: 0; border-radius: 10px; background: #3DDC97; color: #04130C; font: inherit; font-weight: 600; cursor: pointer">Parolni yangilash</button>
+<div style="margin-top: 8px; padding: 16px; border: 1px solid rgba(248,113,113,0.35); background: rgba(248,113,113,0.06); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap">
+<span><span style="display: block; font-weight: 600; color: #FCA5A5">Progressni nolga qaytarish</span><span style="display: block; font-size: 13px; color: #C9D4E0">Barcha ball va urinishlar o'chiriladi</span></span>
+<button type="button" style="height: 40px; padding: 0 14px; border: 1px solid rgba(248,113,113,0.5); border-radius: 10px; background: transparent; color: #F87171; font: inherit; font-weight: 500; cursor: pointer">Qaytarish</button>
+</div>
+</section>
+</sc-if>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { sec: 'profile', theme: 'matrix', size: 'm', n: { done: true, expire: true, weekly: false } }; }
+  renderVals() {
+    const st = this.state;
+    const seg = (on) => 'height:32px;padding:0 12px;border:0;border-radius:7px;font:inherit;font-weight:500;cursor:pointer;' + (on ? 'background:#1B2535;color:#E6EDF3;box-shadow:inset 0 0 0 1px #2A3850' : 'background:transparent;color:#94A3B8');
+    const N = [['done', 'Tekshiruv natijalari', 'Har bir tekshiruvdan keyin qisqa xabar'], ['expire', 'Sessiya tugashi', 'Tugashiga 5 daqiqa qolganda ogohlantirish'], ['weekly', 'Haftalik xulosa', 'Emailga haftalik progress']];
+    return {
+      sections: [['profile', 'Profil'], ['look', 'Ko‘rinish'], ['notif', 'Bildirishnomalar'], ['sec', 'Xavfsizlik']].map(([k, l]) => ({ label: l, on: st.sec === k,
+        style: 'text-align:left;height:40px;padding:0 12px;border:0;border-radius:8px;font:inherit;font-weight:500;cursor:pointer;' + (st.sec === k ? 'background:#1B2535;color:#E6EDF3;box-shadow:inset 2px 0 0 #3DDC97' : 'background:transparent;color:#94A3B8'),
+        pick: () => this.setState({ sec: k }) })),
+      isProfile: st.sec === 'profile', isLook: st.sec === 'look', isNotif: st.sec === 'notif', isSec: st.sec === 'sec',
+      themes: [['matrix', 'Matrix', '#070A0F', '#3DDC97'], ['ocean', 'Ocean', '#0B1626', '#38BDF8'], ['dracula', 'Dracula', '#1A1526', '#A78BFA'], ['amber', 'Amber CRT', '#140F06', '#F5B342']].map(([k, l, bg, fg]) => ({ label: l, on: st.theme === k,
+        style: 'display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:10px;border-radius:12px;background:#0B1018;font:inherit;font-weight:500;color:#E6EDF3;cursor:pointer;border:' + (st.theme === k ? '2px solid #3DDC97' : '1px solid #1F2A3A'),
+        swatch: 'display:flex;align-items:flex-end;width:100%;height:56px;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid #1F2A3A;background:' + bg,
+        prompt: 'font-family:"JetBrains Mono",monospace;font-size:12px;color:' + fg,
+        pick: () => this.setState({ theme: k }) })),
+      sizes: [['s', '13 px'], ['m', '14 px'], ['l', '16 px']].map(([k, l]) => ({ label: l, on: st.size === k, style: seg(st.size === k), pick: () => this.setState({ size: k }) })),
+      toggles: N.map(([k, label, desc]) => { const on = st.n[k]; return { label, desc, on,
+        track: 'flex:none;width:46px;height:26px;border:0;border-radius:999px;padding:3px;cursor:pointer;display:flex;background:' + (on ? '#3DDC97;justify-content:flex-end' : '#243247;justify-content:flex-start'),
+        knob: 'display:block;width:20px;height:20px;border-radius:50%;background:' + (on ? '#04130C' : '#94A3B8'),
+        flip: () => this.setState({ n: { ...st.n, [k]: !on } }) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>
