@@ -6,65 +6,62 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupRoutes configures all API routes
+// MaxBodyBytes caps request bodies.
+const MaxBodyBytes = 1 << 20
+
+// SetupRoutes registers middleware and every route of docs/API.md.
 func SetupRoutes(router *gin.Engine, corsOrigins []string) {
-	// Middleware
-	router.Use(middleware.LoggerMiddleware())
-	router.Use(middleware.CORSMiddleware(corsOrigins))
-	router.Use(gin.Recovery())
+	router.Use(
+		middleware.RequestID(),
+		middleware.LoggerMiddleware(),
+		gin.Recovery(),
+		middleware.SecurityHeaders(),
+		middleware.CORSMiddleware(corsOrigins),
+		middleware.OriginGuard(corsOrigins),
+		middleware.BodySizeLimit(MaxBodyBytes),
+	)
 
-	// Health check
 	router.GET("/healthz", HealthCheck)
+	router.GET("/readyz", ReadyCheckHandler)
 
-	// WebSocket
+	// Terminal stream; the handler authenticates (cookie) and checks Origin + session ownership.
 	router.GET("/ws", websocket.Handler)
 
-	// API v1
 	api := router.Group("/api")
-	{
-		// Auth endpoints (public)
-		auth := api.Group("/auth")
-		{
-			auth.POST("/register", Register)
-			auth.POST("/login", Login)
-		}
 
-		// Tasks (public)
-		api.GET("/tasks", GetTasks)
-		api.GET("/tasks/:id", GetTask)
+	authGroup := api.Group("/auth")
+	authGroup.POST("/register", middleware.AuthRateLimiter(), Register)
+	authGroup.POST("/login", middleware.AuthRateLimiter(), Login)
+	authGroup.POST("/logout", middleware.AuthMiddleware(), Logout)
 
-		// Protected endpoints
-		protected := api.Group("")
-		protected.Use(middleware.AuthMiddleware())
-		{
-			// Sessions
-			protected.POST("/sessions", CreateSession)
-			protected.GET("/sessions/:id", GetSession)
-			protected.DELETE("/sessions/:id", DeleteSession)
+	public := api.Group("", middleware.OptionalAuthMiddleware(), touchLastActive())
+	public.GET("/tasks", GetTasks)
+	public.GET("/tasks/:id", GetTask)
 
-			// Check solution
-			protected.POST("/check/:id", CheckSolution)
+	user := api.Group("", middleware.AuthMiddleware(), touchLastActive())
+	user.GET("/me", GetMe)
+	user.PUT("/me", UpdateMe)
+	user.POST("/me/password", ChangePassword)
 
-			// User progress
-			protected.GET("/progress", GetUserProgress)
-			protected.GET("/leaderboard", GetLeaderboard)
-		}
+	user.POST("/sessions", CreateSession)
+	user.GET("/sessions/active", GetActiveSession)
+	user.GET("/sessions/:id", GetSession)
+	user.POST("/sessions/:id/recreate", RecreateSession)
+	user.DELETE("/sessions/:id", DeleteSession)
+	user.POST("/check/:sessionId", CheckSolution)
 
-		// Admin endpoints
-		admin := api.Group("/admin")
-		admin.Use(middleware.AuthMiddleware())
-		admin.Use(middleware.RoleMiddleware("admin"))
-		{
-			admin.GET("/stats", GetStats)
-			admin.GET("/users", GetUsers)
-			admin.GET("/users/:id", GetUserDetails)
-			admin.PUT("/users/:id", UpdateUser)
-			admin.DELETE("/users/:id", DeleteUserByID)
-			admin.GET("/sessions", GetAllSessions)
-			admin.POST("/sessions/:id/terminate", TerminateSession)
-			admin.GET("/activity", GetActivityLogs)
-			admin.GET("/resources", GetResources)
-			admin.POST("/tasks/reload", ReloadTasks)
-		}
-	}
+	user.GET("/progress", GetUserProgress)
+	user.DELETE("/progress", ResetProgress)
+	user.GET("/leaderboard", GetLeaderboard)
+
+	admin := api.Group("/admin", middleware.AuthMiddleware(), middleware.RoleMiddleware("admin"), touchLastActive())
+	admin.GET("/stats", GetStats)
+	admin.GET("/users", GetUsers)
+	admin.PUT("/users/:id", UpdateUser)
+	admin.DELETE("/users/:id", DeleteUserByID)
+	admin.GET("/sessions", GetAllSessions)
+	admin.POST("/sessions/:id/terminate", TerminateSession)
+	admin.GET("/activity", GetActivityLogs)
+	admin.GET("/resources", GetResources)
+	admin.POST("/tasks/reload", ReloadTasks)
 }

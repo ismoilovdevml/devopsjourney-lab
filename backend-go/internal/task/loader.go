@@ -4,107 +4,198 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
+	"sync"
 
 	"github.com/devops-lab/backend/internal/models"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
-var tasks []models.Task
-var tasksDir string
+// DefaultCategory is used when task.yaml has no category.
+const DefaultCategory = "other"
 
-// Init initializes the task loader
+// IDPattern is the allowed shape of a task id (also used to validate path params).
+var IDPattern = regexp.MustCompile(`^[a-z0-9-]{1,64}$`)
+
+var (
+	mu       sync.RWMutex
+	tasks    []models.Task
+	tasksDir string
+)
+
+// Init initializes the task loader.
 func Init(dir string) error {
+	mu.Lock()
 	tasksDir = dir
+	mu.Unlock()
 	return LoadTasks()
 }
 
-// LoadTasks loads all tasks from the tasks directory
+// LoadTasks loads all tasks from the tasks directory. On failure the previously
+// loaded tasks are kept.
 func LoadTasks() error {
-	if _, err := os.Stat(tasksDir); os.IsNotExist(err) {
-		return fmt.Errorf("tasks directory does not exist: %s", tasksDir)
-	}
+	mu.RLock()
+	dir := tasksDir
+	mu.RUnlock()
 
-	entries, err := os.ReadDir(tasksDir)
+	loaded, err := LoadDir(dir)
 	if err != nil {
-		return fmt.Errorf("failed to read tasks directory: %w", err)
+		return err
 	}
 
-	tasks = []models.Task{}
+	mu.Lock()
+	tasks = loaded
+	mu.Unlock()
 
+	log.Info().Int("count", len(loaded)).Msg("Tasks loaded successfully")
+	return nil
+}
+
+// LoadDir parses every <dir>/<id>/task.yaml and returns the tasks sorted by order.
+func LoadDir(dir string) ([]models.Task, error) {
+	if _, err := os.Stat(dir); err != nil {
+		return nil, fmt.Errorf("tasks directory not accessible: %s: %w", dir, err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tasks directory: %w", err)
+	}
+
+	loaded := []models.Task{}
+	seen := map[string]bool{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		taskID := entry.Name()
-		taskFile := filepath.Join(tasksDir, taskID, "task.yaml")
-
-		if _, err := os.Stat(taskFile); os.IsNotExist(err) {
-			log.Warn().Str("task_id", taskID).Msg("Task YAML file not found, skipping")
+		taskFile := filepath.Join(dir, entry.Name(), "task.yaml")
+		if _, err := os.Stat(taskFile); err != nil {
+			log.Warn().Str("task_dir", entry.Name()).Msg("task.yaml not found, skipping")
 			continue
 		}
 
-		task, err := loadTask(taskFile, taskID)
+		t, err := loadTask(taskFile, entry.Name())
 		if err != nil {
-			log.Error().Err(err).Str("task_id", taskID).Msg("Failed to load task")
+			log.Error().Err(err).Str("task_dir", entry.Name()).Msg("Failed to load task")
 			continue
 		}
-
-		tasks = append(tasks, *task)
+		if seen[t.ID] {
+			log.Error().Str("task_id", t.ID).Msg("Duplicate task id, skipping")
+			continue
+		}
+		seen[t.ID] = true
+		loaded = append(loaded, *t)
 	}
 
-	// Sort by order
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].Order < tasks[j].Order
+	sort.SliceStable(loaded, func(i, j int) bool {
+		if loaded[i].Order != loaded[j].Order {
+			return loaded[i].Order < loaded[j].Order
+		}
+		return loaded[i].ID < loaded[j].ID
 	})
-
-	log.Info().Int("count", len(tasks)).Msg("Tasks loaded successfully")
-	return nil
+	return loaded, nil
 }
 
-func loadTask(filename, taskID string) (*models.Task, error) {
+func loadTask(filename, dirName string) (*models.Task, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	var task models.Task
-	if err := yaml.Unmarshal(data, &task); err != nil {
+	var t models.Task
+	if err := yaml.Unmarshal(data, &t); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Set ID if not specified
-	if task.ID == "" {
-		task.ID = taskID
+	if t.ID == "" {
+		t.ID = dirName
+	}
+	if !IDPattern.MatchString(t.ID) {
+		return nil, fmt.Errorf("invalid task id %q", t.ID)
 	}
 
-	// Load description from README.md if exists
-	readmePath := filepath.Join(filepath.Dir(filename), "README.md")
-	if readme, err := os.ReadFile(readmePath); err == nil {
-		task.Description = string(readme)
+	if readme, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "README.md")); err == nil {
+		t.Readme = string(readme)
 	}
 
-	return &task, nil
+	normalize(&t)
+	return &t, nil
 }
 
-// GetTasks returns all tasks
+// normalize fills defaults: difficulty in 1..3, points = difficulty*100,
+// category, description from the README, non-nil hints.
+func normalize(t *models.Task) {
+	if t.Difficulty < 1 {
+		t.Difficulty = 1
+	} else if t.Difficulty > 3 {
+		t.Difficulty = 3
+	}
+	if t.Points <= 0 {
+		t.Points = t.Difficulty * 100
+	}
+	t.Category = strings.ToLower(strings.TrimSpace(t.Category))
+	if t.Category == "" {
+		t.Category = DefaultCategory
+	}
+	if strings.TrimSpace(t.Description) == "" {
+		t.Description = summarize(t.Readme, 200)
+	}
+	if t.Hints == nil {
+		t.Hints = []string{}
+	}
+}
+
+// summarize returns the first plain paragraph line of a markdown document, truncated to max runes.
+func summarize(markdown string, max int) string {
+	for _, line := range strings.Split(markdown, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "```") ||
+			strings.HasPrefix(line, "-") || strings.HasPrefix(line, "*") || strings.HasPrefix(line, "|") {
+			continue
+		}
+		r := []rune(line)
+		if len(r) > max {
+			return string(r[:max-1]) + "…"
+		}
+		return line
+	}
+	return ""
+}
+
+// GetTasks returns a copy of all tasks sorted by order.
 func GetTasks() []models.Task {
-	return tasks
+	mu.RLock()
+	defer mu.RUnlock()
+	out := make([]models.Task, len(tasks))
+	copy(out, tasks)
+	return out
 }
 
-// GetTask returns a task by ID
+// GetTask returns a task by ID.
 func GetTask(id string) (*models.Task, error) {
-	for _, task := range tasks {
-		if task.ID == id {
-			return &task, nil
+	mu.RLock()
+	defer mu.RUnlock()
+	for i := range tasks {
+		if tasks[i].ID == id {
+			t := tasks[i]
+			return &t, nil
 		}
 	}
 	return nil, fmt.Errorf("task not found: %s", id)
 }
 
-// ReloadTasks reloads all tasks
+// SetTasks replaces the loaded tasks (used by tests).
+func SetTasks(ts []models.Task) {
+	mu.Lock()
+	defer mu.Unlock()
+	tasks = append([]models.Task(nil), ts...)
+}
+
+// ReloadTasks reloads all tasks.
 func ReloadTasks() error {
 	return LoadTasks()
 }

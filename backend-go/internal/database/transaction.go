@@ -2,7 +2,10 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -87,7 +90,16 @@ func WithTransactionRetry(ctx context.Context, maxRetries int, fn func(*gorm.DB)
 
 // isRetryableError checks if an error is retryable
 func isRetryableError(err error) bool {
-	// Add checks for deadlock, serialization errors, etc.
-	// This is database-specific
-	return false // TODO: Implement database-specific checks
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// serialization_failure, deadlock_detected
+		return pgErr.Code == "40001" || pgErr.Code == "40P01"
+	}
+	return false
+}
+
+// IsUniqueViolation reports whether err is a Postgres unique_violation (23505).
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
