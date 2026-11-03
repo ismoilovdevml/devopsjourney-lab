@@ -56,3 +56,6 @@ logs/
 *.bak
 *.orig
 tmp/
+
+# Local Playwright screenshot captures (curated copies live in docs/screenshots)
+e2e/screenshots/

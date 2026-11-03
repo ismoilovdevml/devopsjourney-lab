@@ -141,7 +141,10 @@ function createClient(): AxiosInstance {
         return client.request(config)
       }
 
-      if (error.response?.status === 401 && !config.skipAuthRedirect) {
+      // A disabled account answers 403 "Account disabled": end the session like a 401.
+      const body = error.response?.data as { error?: unknown } | undefined
+      const accountDisabled = error.response?.status === 403 && body?.error === 'Account disabled'
+      if ((error.response?.status === 401 || accountDisabled) && !config.skipAuthRedirect) {
         unauthorizedHandler?.()
       }
 
