@@ -28,7 +28,7 @@ x-hardening: &hardening
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     <<: *hardening
     # Run as the image's postgres user (uid 70) from the start: no root, no
     # capabilities. Fresh named volumes inherit the image's ownership.
