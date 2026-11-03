@@ -23,6 +23,10 @@ export default defineConfig({
         target: backend,
         changeOrigin: false
       },
+      '/readyz': {
+        target: backend,
+        changeOrigin: false
+      },
       '/ws': {
         target: backend,
         ws: true,

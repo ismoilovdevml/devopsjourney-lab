@@ -18,7 +18,7 @@ module.exports = {
     sourceType: 'module'
   },
   // Legacy views are kept only as a reference for page authors; they are not built.
-  ignorePatterns: ['dist/', 'src/views/_legacy/**'],
+  ignorePatterns: ['dist/'],
   rules: {
     'vue/multi-word-component-names': 'off',
     '@typescript-eslint/no-explicit-any': 'error',
