@@ -2,19 +2,23 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/devops-lab/backend/internal/database"
+	"github.com/devops-lab/backend/internal/docker"
+	"github.com/devops-lab/backend/internal/models"
 	"github.com/rs/zerolog/log"
 )
 
 // CleanupManager manages scheduled cleanup tasks with proper goroutine lifecycle
 type CleanupManager struct {
-	mu      sync.RWMutex
-	timers  map[string]*time.Timer
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	mu     sync.RWMutex
+	timers map[string]*time.Timer
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewCleanupManager creates a new cleanup manager
@@ -134,4 +138,108 @@ func (cm *CleanupManager) GetActiveTimers() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return len(cm.timers)
+}
+
+// StartPeriodicCleanup runs one reconciliation pass right away (to clean up
+// after a crash) and then every interval.
+func (m *Manager) StartPeriodicCleanup(interval time.Duration) {
+	go func() {
+		ctx, cancel := context.WithTimeout(m.cleanupManager.ctx, 2*time.Minute)
+		defer cancel()
+		if err := m.CleanupExpiredSessions(ctx); err != nil {
+			log.Error().Err(err).Msg("Startup session reconciliation failed")
+		}
+	}()
+	m.cleanupManager.StartPeriodicCleanup(interval, m.CleanupExpiredSessions)
+}
+
+// CleanupExpiredSessions reconciles the database with the Docker host:
+//  1. active sessions past their TTL are expired (container removed),
+//  2. active sessions whose container vanished are marked stopped,
+//  3. labelled containers without a live session (orphans left by a backend
+//     crash or a failed create) are removed.
+func (m *Manager) CleanupExpiredSessions(ctx context.Context) error {
+	now := time.Now()
+
+	var expired []models.Session
+	if err := database.DB.WithContext(ctx).
+		Where("status = ? AND expires_at < ?", StatusActive, now).
+		Find(&expired).Error; err != nil {
+		return fmt.Errorf("failed to list expired sessions: %w", err)
+	}
+	for i := range expired {
+		m.finishSession(ctx, &expired[i], StatusExpired)
+	}
+
+	containers, err := docker.ListLabContainers(ctx)
+	if err != nil {
+		return err
+	}
+
+	var active []models.Session
+	if err := database.DB.WithContext(ctx).
+		Where("status = ?", StatusActive).
+		Find(&active).Error; err != nil {
+		return fmt.Errorf("failed to list active sessions: %w", err)
+	}
+
+	byContainer := make(map[string]bool, len(containers))
+	for _, c := range containers {
+		byContainer[c.ID] = c.State == "running"
+	}
+	var lost int
+	for i := range active {
+		s := &active[i]
+		if byContainer[s.ContainerID] || s.CreatedAt.After(now.Add(-m.orphanGrace)) {
+			continue
+		}
+		if _, labelled := byContainer[s.ContainerID]; !labelled {
+			// Pre-label containers: ask Docker directly before giving up on it.
+			if info, err := docker.InspectContainer(ctx, s.ContainerID); err == nil && info.State != nil && info.State.Running {
+				continue
+			}
+		}
+		lost++
+		m.finishSession(ctx, s, StatusStopped)
+	}
+
+	liveSessions := make(map[string]bool, len(active))
+	for _, s := range active {
+		liveSessions[s.ID] = true
+	}
+	for _, s := range expired {
+		delete(liveSessions, s.ID)
+	}
+	orphans := findOrphans(containers, liveSessions, now, m.orphanGrace)
+	for _, c := range orphans {
+		log.Warn().Str("container_id", shortID(c.ID)).Str("session_id", c.SessionID).
+			Str("state", c.State).Msg("Removing orphaned lab container")
+		if err := docker.RemoveContainer(ctx, c.ID); err != nil {
+			log.Error().Err(err).Str("container_id", shortID(c.ID)).Msg("Failed to remove orphaned container")
+		}
+	}
+
+	if len(expired) > 0 || lost > 0 || len(orphans) > 0 {
+		log.Info().Int("expired", len(expired)).Int("lost", lost).Int("orphans", len(orphans)).
+			Msg("Session reconciliation done")
+	}
+	return nil
+}
+
+// findOrphans returns labelled containers that do not belong to a live
+// session. Running containers younger than grace are skipped: they may still
+// be in setup, before their session row is written.
+func findOrphans(containers []docker.LabContainer, liveSessions map[string]bool, now time.Time, grace time.Duration) []docker.LabContainer {
+	var out []docker.LabContainer
+	for _, c := range containers {
+		if liveSessions[c.SessionID] {
+			continue
+		}
+		young := now.Sub(c.Created) < grace
+		if young && (c.State == "running" || c.State == "created") {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }

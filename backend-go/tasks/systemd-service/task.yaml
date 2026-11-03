@@ -1,20 +1,34 @@
 id: systemd-service
-title: "Test 3: Systemd Service Creation"
-image: ubuntu:22.04
-
-setup:
-  - apt-get update -qq
-  - apt-get install -y systemd systemctl -qq
-
-checks:
-  - name: "Check if myapp.service file exists"
-    cmd: test -f /etc/systemd/system/myapp.service
-  - name: "Check if service contains correct ExecStart"
-    cmd: grep -q "ExecStart=/usr/local/bin/myapp.sh" /etc/systemd/system/myapp.service
-  - name: "Check if script file exists and is executable"
-    cmd: test -x /usr/local/bin/myapp.sh
-  - name: "Check if service is enabled"
-    cmd: systemctl is-enabled myapp.service 2>/dev/null || systemctl list-unit-files | grep -q "myapp.service.*enabled"
-
+title: "Systemd Service Creation"
+category: services
 order: 3
 difficulty: 2
+points: 200
+description: >-
+  Turn a shell script into a long-running systemd service: write the unit file,
+  make it pass systemd-analyze verify and enable it at boot.
+hints:
+  - "Start with the program: /usr/local/bin/myapp.sh must loop forever, append a line containing 'MyApp is running' to /var/log/myapp.log, and be executable."
+  - "A unit file has [Unit], [Service] and [Install] sections. You need ExecStart=/usr/local/bin/myapp.sh, Restart=always and WantedBy=multi-user.target."
+  - "Validate with 'systemd-analyze verify /etc/systemd/system/myapp.service', then 'systemctl enable myapp.service' and 'systemctl is-enabled myapp.service'."
+
+# systemd is not PID 1 inside the lab container, so the service cannot be
+# started; the unit is validated offline and the script is exercised directly.
+setup:
+  - rm -f /etc/systemd/system/myapp.service /etc/systemd/system/multi-user.target.wants/myapp.service /usr/local/bin/myapp.sh /var/log/myapp.log
+
+checks:
+  - name: "/usr/local/bin/myapp.sh exists and is executable"
+    cmd: test -f /usr/local/bin/myapp.sh && test -x /usr/local/bin/myapp.sh
+  - name: "/etc/systemd/system/myapp.service exists"
+    cmd: test -f /etc/systemd/system/myapp.service
+  - name: "Unit file passes systemd-analyze verify"
+    cmd: systemd-analyze verify /etc/systemd/system/myapp.service
+  - name: "ExecStart runs /usr/local/bin/myapp.sh"
+    cmd: grep -Eq '^[[:space:]]*ExecStart=[[:space:]]*/usr/local/bin/myapp\.sh[[:space:]]*$' /etc/systemd/system/myapp.service
+  - name: "Service restarts automatically (Restart=always)"
+    cmd: grep -Eq '^[[:space:]]*Restart=always[[:space:]]*$' /etc/systemd/system/myapp.service
+  - name: "Service is enabled for multi-user.target"
+    cmd: grep -Eq '^[[:space:]]*WantedBy=.*multi-user\.target' /etc/systemd/system/myapp.service && test "$(systemctl is-enabled myapp.service 2>/dev/null)" = enabled
+  - name: "myapp.sh keeps running and logs to /var/log/myapp.log"
+    cmd: timeout 3 /usr/local/bin/myapp.sh >/dev/null 2>&1; test $? -eq 124 && grep -q 'MyApp is running' /var/log/myapp.log

@@ -1,22 +1,33 @@
 id: user-management
-title: "Test 4: Linux User & Permission Management"
-image: ubuntu:22.04
-
-setup:
-  - apt-get update -qq
-  - apt-get install -y sudo -qq
-
-checks:
-  - name: "Check if user 'devops' exists"
-    cmd: id devops >/dev/null 2>&1
-  - name: "Check if user is in sudo group"
-    cmd: groups devops | grep -q sudo
-  - name: "Check if /opt/app directory exists"
-    cmd: test -d /opt/app
-  - name: "Check if /opt/app is owned by devops"
-    cmd: stat -c '%U' /opt/app | grep -q devops
-  - name: "Check if /opt/app has correct permissions (755)"
-    cmd: stat -c '%a' /opt/app | grep -q 755
-
+title: "Linux User & Permission Management"
+category: users
 order: 4
 difficulty: 1
+points: 100
+description: >-
+  Create an admin user and a team group, then set up a shared application
+  directory with the right owner, group and setgid permissions.
+hints:
+  - "useradd -m -s /bin/bash devops creates the user with a home directory and a bash shell."
+  - "Add devops to the sudo group with usermod -aG sudo devops; create the team with groupadd devteam and add devops to it too."
+  - "mkdir -p /opt/app, then chown devops:devteam /opt/app and chmod 2775 /opt/app (the leading 2 is the setgid bit)."
+
+setup:
+  - userdel -r devops >/dev/null 2>&1 || true
+  - groupdel devteam >/dev/null 2>&1 || true
+  - rm -rf /opt/app
+
+checks:
+  - name: "User 'devops' exists"
+    cmd: id devops >/dev/null 2>&1
+  - name: "devops has home /home/devops and shell /bin/bash"
+    cmd: |-
+      test "$(getent passwd devops | cut -d: -f6,7)" = "/home/devops:/bin/bash" && test -d /home/devops
+  - name: "devops is in the sudo group"
+    cmd: id -nG devops | tr ' ' '\n' | grep -qx sudo
+  - name: "Group 'devteam' exists and devops is a member"
+    cmd: getent group devteam >/dev/null && id -nG devops | tr ' ' '\n' | grep -qx devteam
+  - name: "/opt/app is owned by devops:devteam"
+    cmd: test "$(stat -c '%U:%G' /opt/app 2>/dev/null)" = "devops:devteam"
+  - name: "/opt/app has mode 2775 (rwxrwsr-x)"
+    cmd: test -d /opt/app && test "$(stat -c '%a' /opt/app)" = 2775

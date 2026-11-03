@@ -1,59 +1,63 @@
-# Task 2: Docker Container Management
+# Dockerfile & Compose Authoring
 
-## Maqsad  
-Docker containerlar bilan ishlashni o'rganish
+## Goal
+Package a static website as a container image and describe how to run it with
+Docker Compose. Writing correct Dockerfiles and compose files is the day-to-day
+part of working with containers.
 
-## Vazifa
-1. Docker xizmati ishlab turganini tekshiring
-2. `hello-world` image'ini pull qiling
-3. `hello-world` containerini ishga tushiring
-4. `nginx:alpine` image'ini pull qiling
-5. Ishlab turgan nginx containerini yarating
+> This lab has **no Docker daemon** (running Docker inside a container would need a
+> privileged container). You write the files, and the checker validates them statically with
+> [hadolint](https://github.com/hadolint/hadolint) and `docker compose config`, the same
+> tools you would use in CI. Both are installed: `hadolint` and `docker compose`.
 
-## Ballar: 30 ball
+## What you need to do
+A website is waiting in `/root/webapp/index.html`. In `/root/webapp`:
 
----
+1. Write a `Dockerfile` that
+   - starts `FROM` the official `nginx` image **with an explicit tag** (for example `nginx:1.27-alpine`, not `latest`),
+   - copies `index.html` into `/usr/share/nginx/html/`,
+   - declares `EXPOSE 80`,
+   - has no hadolint **errors** (warnings are fine).
+2. Write a `compose.yaml` with a service named `web` that
+   - is built from the Dockerfile in the same directory (`build: .`),
+   - publishes host port `8080` to container port `80`.
 
-## 💡 Maslahatlar
+## Hints
 
-### Hint 1: Docker xizmatini tekshirish
+### Dockerfile
+```dockerfile
+FROM nginx:1.27-alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+```
 ```bash
-systemctl is-active docker
+hadolint Dockerfile
 ```
 
-### Hint 2: Image pull qilish
+### compose.yaml
+```yaml
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+```
 ```bash
-docker pull hello-world
-docker pull nginx:alpine
+docker compose config      # prints the normalized file, or an error
 ```
 
-### Hint 3: Container ishga tushirish
+## What the checker verifies
+1. `/root/webapp/Dockerfile` exists
+2. `hadolint --failure-threshold error Dockerfile` passes
+3. `FROM nginx:<tag>` with an explicit tag that is not `latest`
+4. a `COPY` (or `ADD`) of `index.html` into `/usr/share/nginx/html`
+5. `EXPOSE 80`
+6. `docker compose -f compose.yaml config` accepts the file
+7. service `web` has `build: .` (context `/root/webapp`)
+8. service `web` maps host port `8080` to container port `80`
+
+## On a real machine
 ```bash
-docker run hello-world
+docker compose up -d --build
+curl http://localhost:8080/
 ```
-
-### Hint 4: Background'da container ishga tushirish
-```bash
-docker run -d --name my-nginx nginx:alpine
-```
-
-### Hint 5: Containerlarni ko'rish
-```bash
-docker ps
-```
-
----
-
-## ✅ Tekshirish Mezonlari
-
-1. Docker service active - **5 ball**
-2. hello-world image mavjud - **5 ball**
-3. hello-world container ishga tushgan - **5 ball**
-4. nginx:alpine image mavjud - **5 ball**
-5. Nginx container ishlab turibdi - **10 ball**
-
-## 🎯 Foydali Komandalar
-
-- `docker images` - imagelarni ko'rish
-- `docker ps` - ishlab turgan containerlar
-- `docker ps -a` - barcha containerlar

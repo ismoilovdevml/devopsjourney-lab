@@ -1,111 +1,153 @@
 package docker
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/rs/zerolog/log"
 )
 
-// ExecResult represents the result of a command execution
+// MaxExecOutput caps how much output ExecCommand keeps in memory. Anything
+// beyond it is read and discarded so the exec stream can finish.
+const MaxExecOutput = 64 * 1024
+
+// timeoutExitCode is what coreutils `timeout` returns when it killed the command.
+const timeoutExitCode = 124
+
+// ExecResult represents the result of a command execution.
 type ExecResult struct {
 	ExitCode int
-	Output   string
-	Error    error
+	Output   string // combined stdout+stderr, at most MaxExecOutput bytes
+	TimedOut bool
+	Error    error // transport/API error (not a non-zero exit code)
 }
 
-// ExecCommand executes a command in a container
+// ExecCommand runs `bash -lc command` inside a container as root and returns
+// its exit code and combined output.
+//
+// The command is wrapped in coreutils `timeout`, so a hanging check is killed
+// inside the container (not only abandoned by the API call), and the API call
+// itself is bounded by timeout plus a small grace period.
 func ExecCommand(ctx context.Context, containerID, command string, timeout time.Duration) *ExecResult {
-	execCtx, cancel := context.WithTimeout(ctx, timeout)
+	secs := int(timeout.Round(time.Second) / time.Second)
+	if secs < 1 {
+		secs = 1
+	}
+	execCtx, cancel := context.WithTimeout(ctx, timeout+5*time.Second)
 	defer cancel()
 
-	// Create exec instance
-	execConfig := container.ExecOptions{
+	execID, err := Client.ContainerExecCreate(execCtx, containerID, container.ExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          false,
 		WorkingDir:   "/root",
-		Cmd:          []string{"bash", "-lc", command},
-	}
-
-	execID, err := Client.ContainerExecCreate(execCtx, containerID, execConfig)
-	if err != nil {
-		log.Error().Err(err).Str("container", containerID[:12]).Msg("Failed to create exec")
-		return &ExecResult{ExitCode: 1, Error: err}
-	}
-
-	// Start exec
-	resp, err := Client.ContainerExecAttach(execCtx, execID.ID, container.ExecStartOptions{
-		Tty: false,
+		Cmd:          wrapWithTimeout(command, secs),
 	})
 	if err != nil {
-		log.Error().Err(err).Str("exec_id", execID.ID[:12]).Msg("Failed to attach exec")
-		return &ExecResult{ExitCode: 1, Error: err}
+		return &ExecResult{ExitCode: -1, Error: fmt.Errorf("exec create: %w", err)}
+	}
+
+	resp, err := Client.ContainerExecAttach(execCtx, execID.ID, container.ExecStartOptions{Tty: false})
+	if err != nil {
+		return &ExecResult{ExitCode: -1, Error: fmt.Errorf("exec attach: %w", err)}
 	}
 	defer resp.Close()
 
-	// Read output
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(resp.Reader)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to read exec output")
-		return &ExecResult{ExitCode: 1, Error: err}
+	// The hijacked connection ignores ctx; close it when ctx expires so the
+	// read below cannot block forever.
+	stop := context.AfterFunc(execCtx, resp.Close)
+	defer stop()
+
+	out := &limitedBuffer{max: MaxExecOutput}
+	if _, err := stdcopy.StdCopy(out, out, resp.Reader); err != nil && !errors.Is(err, io.EOF) {
+		if execCtx.Err() != nil {
+			return &ExecResult{ExitCode: -1, Output: out.String(), TimedOut: true, Error: fmt.Errorf("exec timed out: %w", execCtx.Err())}
+		}
+		return &ExecResult{ExitCode: -1, Output: out.String(), Error: fmt.Errorf("exec read: %w", err)}
 	}
 
-	// Get exit code
 	inspect, err := Client.ContainerExecInspect(execCtx, execID.ID)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to inspect exec")
-		return &ExecResult{ExitCode: 1, Output: buf.String(), Error: err}
+		return &ExecResult{ExitCode: -1, Output: out.String(), Error: fmt.Errorf("exec inspect: %w", err)}
 	}
 
 	result := &ExecResult{
 		ExitCode: inspect.ExitCode,
-		Output:   buf.String(),
+		Output:   out.String(),
+		TimedOut: inspect.ExitCode == timeoutExitCode,
 	}
-
 	log.Debug().
-		Str("container", containerID[:12]).
+		Str("container", shortID(containerID)).
 		Int("exit_code", result.ExitCode).
-		Str("command", command).
 		Msg("Command executed")
-
 	return result
 }
 
-// RunSetupCommands runs setup commands for a task
-func RunSetupCommands(ctx context.Context, containerID string, commands []string) error {
+// wrapWithTimeout builds the exec argv: kill the command after secs seconds
+// (SIGTERM, then SIGKILL 2s later).
+func wrapWithTimeout(command string, secs int) []string {
+	return []string{"timeout", "-k", "2", strconv.Itoa(secs), "bash", "-lc", command}
+}
+
+// RunSetupCommands runs a task's setup commands in order. Any non-zero exit
+// code aborts setup: a half-prepared lab is worse than a clear error.
+func RunSetupCommands(ctx context.Context, containerID string, commands []string, perCommand time.Duration) error {
 	for i, cmd := range commands {
-		log.Info().
-			Int("step", i+1).
-			Int("total", len(commands)).
-			Str("command", truncate(cmd, 60)).
-			Msg("Running setup command")
-
-		result := ExecCommand(ctx, containerID, cmd, 60*time.Second)
+		result := ExecCommand(ctx, containerID, cmd, perCommand)
 		if result.Error != nil {
-			return fmt.Errorf("setup command %d failed: %w", i+1, result.Error)
+			return fmt.Errorf("setup command %d/%d failed: %w", i+1, len(commands), result.Error)
 		}
-
 		if result.ExitCode != 0 {
-			log.Warn().
-				Int("step", i+1).
-				Int("exit_code", result.ExitCode).
-				Str("output", truncate(result.Output, 200)).
-				Msg("Setup command returned non-zero exit code")
+			return fmt.Errorf("setup command %d/%d (%s) exited with %d: %s",
+				i+1, len(commands), Truncate(cmd, 60), result.ExitCode, Truncate(result.Output, 300))
 		}
 	}
-
-	log.Info().Msg("All setup commands completed")
 	return nil
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+// Truncate shortens s to at most maxBytes bytes without splitting a UTF-8
+// sequence, appending a marker when something was cut.
+func Truncate(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
 		return s
 	}
-	return s[:maxLen] + "..."
+	const marker = "\n...[truncated]"
+	cut := maxBytes - len(marker)
+	if cut < 0 {
+		cut = 0
+	}
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + marker
 }
+
+// limitedBuffer keeps the first max bytes written and silently drops the rest
+// (while still reporting success, so the producer keeps draining).
+type limitedBuffer struct {
+	buf []byte
+	max int
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if room := b.max - len(b.buf); room > 0 {
+		if len(p) > room {
+			b.buf = append(b.buf, p[:room]...)
+		} else {
+			b.buf = append(b.buf, p...)
+		}
+	}
+	return len(p), nil
+}
+
+func (b *limitedBuffer) String() string { return string(b.buf) }

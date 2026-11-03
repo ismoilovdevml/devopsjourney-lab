@@ -1,23 +1,38 @@
 id: firewall-config
-title: "Test 5: UFW Firewall Configuration"
-image: ubuntu:22.04
-
-setup:
-  - apt-get update -qq
-  - apt-get install -y ufw -qq
-  - ufw --force reset
-
-checks:
-  - name: "Check if UFW is installed"
-    cmd: which ufw >/dev/null
-  - name: "Check if SSH port 22 is allowed"
-    cmd: ufw status | grep -q "22.*ALLOW"
-  - name: "Check if HTTP port 80 is allowed"
-    cmd: ufw status | grep -q "80.*ALLOW"
-  - name: "Check if HTTPS port 443 is allowed"
-    cmd: ufw status | grep -q "443.*ALLOW"
-  - name: "Check if UFW is active"
-    cmd: ufw status | grep -q "Status.*active"
-
+title: "UFW Firewall Configuration"
+category: network
 order: 5
 difficulty: 2
+points: 200
+description: >-
+  Lock down a server with UFW: deny incoming traffic by default, open only SSH,
+  HTTP and HTTPS, block MySQL explicitly and switch the firewall on.
+hints:
+  - "Set the defaults first: ufw default deny incoming and ufw default allow outgoing."
+  - "Open the web and SSH ports with ufw allow 22/tcp, 80/tcp and 443/tcp, and block the database with ufw deny 3306/tcp."
+  - "Enable it non-interactively with ufw --force enable, then compare 'ufw status verbose' with 'iptables -S ufw-user-input'."
+
+# NET_ADMIN lets ufw/iptables change the container's *own* network namespace
+# (NetworkMode none: loopback only). It cannot touch the host's firewall.
+capabilities: [NET_ADMIN]
+
+setup:
+  - ufw --force reset >/dev/null
+
+checks:
+  - name: "UFW is active"
+    cmd: |-
+      ufw status | grep -qx 'Status: active'
+  - name: "Default policy denies incoming traffic"
+    cmd: |-
+      ufw status verbose | grep -q 'Default: deny (incoming)'
+  - name: "SSH (22/tcp) is allowed"
+    cmd: ufw status | grep -Eq '^22/tcp[[:space:]]+(ALLOW|LIMIT)( IN)?[[:space:]]+Anywhere[[:space:]]*$'
+  - name: "HTTP (80/tcp) is allowed"
+    cmd: ufw status | grep -Eq '^80/tcp[[:space:]]+ALLOW( IN)?[[:space:]]+Anywhere[[:space:]]*$'
+  - name: "HTTPS (443/tcp) is allowed"
+    cmd: ufw status | grep -Eq '^443/tcp[[:space:]]+ALLOW( IN)?[[:space:]]+Anywhere[[:space:]]*$'
+  - name: "MySQL (3306/tcp) is explicitly denied"
+    cmd: ufw status | grep -Eq '^3306/tcp[[:space:]]+(DENY|REJECT)( IN)?[[:space:]]+Anywhere[[:space:]]*$'
+  - name: "Rules are loaded in the kernel (iptables)"
+    cmd: rules="$(iptables -S ufw-user-input 2>/dev/null)" && for p in 80 443; do echo "$rules" | grep -q -- "--dport $p -j ACCEPT" || exit 1; done && echo "$rules" | grep -Eq -- '--dport 3306 -j (DROP|REJECT)'

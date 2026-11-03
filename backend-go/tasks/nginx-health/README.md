@@ -1,57 +1,46 @@
-# Task 1: Nginx Web Server Setup
+# Nginx Web Server Setup
 
-## Maqsad
-Nginx web serverini o'rnatish va oddiy web sahifa yaratish
+## Goal
+Serve a health page with Nginx. Load balancers and uptime monitors often probe a
+URL like this and expect a fixed answer, here the single word `ok`.
 
-## Vazifa
-1. Nginx web serverini o'rnating
-2. `/var/www/html/index.html` faylini yarating  
-3. Faylga `ok` matnini yozing
-4. Nginx servisini ishga tushiring
-5. Web sahifani tekshiring
+## What you need to do
+1. Create `/var/www/html/index.html` containing exactly one line: `ok`
+2. Make sure the Nginx configuration is valid
+3. Start Nginx
+4. Confirm that `http://127.0.0.1/` returns HTTP 200 with the body `ok`
 
-## Ballar: 25 ball
+> Nginx is already installed. The lab has no internet access, so `apt-get install` will not work
+> and you don't need it.
 
----
+## Hints
 
-## 💡 Maslahatlar
-
-### Hint 1: Paketlarni yangilash
+### Create the page
 ```bash
-apt-get update
+echo ok > /var/www/html/index.html
+cat /var/www/html/index.html
 ```
 
-### Hint 2: Nginx o'rnatish
+### Check the configuration, then start Nginx
 ```bash
-apt-get install -y nginx
+nginx -t
+service nginx start      # or simply: nginx
 ```
 
-### Hint 3: File yaratish
+### Test it
 ```bash
-echo "ok" > /var/www/html/index.html
+curl -i http://127.0.0.1/
 ```
 
-### Hint 4: Nginx ishga tushirish
-```bash
-service nginx start
-```
+## What the checker verifies
+1. `/var/www/html/index.html` exists
+2. the file contains exactly the line `ok` (no other text)
+3. `nginx -t` succeeds
+4. an `nginx` process is running
+5. `http://127.0.0.1/` answers `200` with the body `ok`
 
-### Hint 5: Tekshirish
-```bash
-curl http://127.0.0.1/index.html
-```
-
----
-
-## ✅ Tekshirish Mezonlari
-
-1. `/var/www/html/index.html` fayli mavjud bo'lishi kerak - **5 ball**
-2. Faylda `ok` matni bo'lishi kerak - **5 ball**
-3. Nginx service ishlab turishi kerak - **10 ball**
-4. Web sahifa ochilishi kerak - **5 ball**
-
-## 🎯 Foydali Komandalar
-
-- `ls /var/www/html` - fayllarni ko'rish
-- `cat /var/www/html/index.html` - fayl mazmunini ko'rish
-- `service nginx status` - nginx holatini tekshirish
+## Useful commands
+- `ls -l /var/www/html`: list the document root
+- `pgrep -a nginx`: show nginx processes
+- `ss -ltnp`: show listening ports
+- `tail /var/log/nginx/error.log`: why Nginx refused to start

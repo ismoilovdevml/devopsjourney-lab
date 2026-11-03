@@ -1,24 +1,33 @@
 id: cron-backup
-title: "Test 6: Cron Job & Backup Automation"
-image: ubuntu:22.04
-
-setup:
-  - apt-get update -qq
-  - apt-get install -y cron tar -qq
-  - service cron start
-  - mkdir -p /var/www/html /backups
-
-checks:
-  - name: "Check if backup script exists"
-    cmd: test -f /usr/local/bin/backup.sh
-  - name: "Check if script is executable"
-    cmd: test -x /usr/local/bin/backup.sh
-  - name: "Check if crontab entry exists"
-    cmd: crontab -l 2>/dev/null | grep -q "/usr/local/bin/backup.sh"
-  - name: "Check if backup directory exists"
-    cmd: test -d /backups
-  - name: "Test if script creates backup successfully"
-    cmd: /usr/local/bin/backup.sh && test -f /backups/website-backup-*.tar.gz
-
+title: "Cron Job & Backup Automation"
+category: automation
 order: 6
 difficulty: 3
+points: 300
+description: >-
+  Automate website backups: write a script that archives /var/www/html into
+  /backups with 7-day retention, and schedule it daily at 02:00 with cron.
+hints:
+  - "Write /usr/local/bin/backup.sh: tar -czf /backups/website-backup-$(date +%Y%m%d-%H%M%S).tar.gz /var/www/html, then chmod +x it."
+  - "Retention: find /backups -name 'website-backup-*.tar.gz' -mtime +7 -delete removes archives older than 7 days."
+  - "Start the scheduler with 'service cron start' and add the job: (crontab -l 2>/dev/null; echo '0 2 * * * /usr/local/bin/backup.sh') | crontab -"
+
+setup:
+  - mkdir -p /var/www/html /backups
+  - printf '<h1>Company website</h1>\n' > /var/www/html/index.html
+  - |-
+    printf 'body { color: #222; }\n' > /var/www/html/style.css
+  - rm -f /usr/local/bin/backup.sh /backups/website-backup-*.tar.gz
+  - crontab -r >/dev/null 2>&1 || true
+
+checks:
+  - name: "/usr/local/bin/backup.sh exists and is executable"
+    cmd: test -f /usr/local/bin/backup.sh && test -x /usr/local/bin/backup.sh
+  - name: "Cron daemon is running"
+    cmd: pgrep -x cron >/dev/null
+  - name: "root's crontab runs backup.sh daily at 02:00"
+    cmd: crontab -l 2>/dev/null | grep -Eq '^[[:space:]]*0[[:space:]]+2[[:space:]]+\*[[:space:]]+\*[[:space:]]+\*[[:space:]]+(/bin/bash[[:space:]]+)?/usr/local/bin/backup\.sh([[:space:]]|$)'
+  - name: "backup.sh creates /backups/website-backup-*.tar.gz containing index.html"
+    cmd: /usr/local/bin/backup.sh >/dev/null 2>&1 && newest="$(ls -t /backups/website-backup-*.tar.gz 2>/dev/null | head -n1)" && test -n "$newest" && test "$(find "$newest" -mmin -1 | wc -l)" -eq 1 && tar -tzf "$newest" | grep -Eq '(^|/)index\.html$'
+  - name: "backup.sh deletes backups older than 7 days"
+    cmd: stale=/backups/website-backup-19990101-000000.tar.gz; { tar -czf "$stale" -C /var/www/html index.html && touch -d '10 days ago' "$stale"; } || exit 1; /usr/local/bin/backup.sh >/dev/null 2>&1; test ! -e "$stale"

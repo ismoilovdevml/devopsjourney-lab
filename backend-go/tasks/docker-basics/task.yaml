@@ -1,24 +1,38 @@
 id: docker-basics
-title: "Test 2: Docker Container Management"
-image: ubuntu:22.04
+title: "Dockerfile & Compose Authoring"
+category: containers
 order: 2
 difficulty: 2
+points: 200
+description: >-
+  Containerize a static website: write a Dockerfile that packages it on top of a
+  pinned Nginx image and a compose file that publishes it on port 8080.
+hints:
+  - "Work in /root/webapp. A Dockerfile needs a FROM line with an explicit tag, e.g. FROM nginx:1.27-alpine (not :latest)."
+  - "COPY index.html into /usr/share/nginx/html/ and declare the port with EXPOSE 80. Run 'hadolint Dockerfile' to check it."
+  - "In compose.yaml define services.web with 'build: .' and ports: [\"8080:80\"], then validate with 'docker compose config'."
 
+# The lab has no Docker daemon (Docker-in-Docker would need a privileged
+# container). Files are validated statically with hadolint and docker-compose.
 setup:
-  - apt-get update -qq
-  - apt-get install -y apt-transport-https ca-certificates curl software-properties-common -qq
-  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-  - add-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-  - apt-get update -qq
-  - apt-get install -y docker-ce -qq
-  - service docker start
+  - mkdir -p /root/webapp
+  - printf '<!doctype html>\n<title>webapp</title>\n<h1>Hello from the DevOps Journey Lab</h1>\n' > /root/webapp/index.html
+  - rm -f /root/webapp/Dockerfile /root/webapp/compose.yaml
 
 checks:
-  - name: "Check if Docker service is running"
-    cmd: service docker status | grep -q running
-  - name: "Check if myapp container exists"
-    cmd: docker ps -a --format '{{.Names}}' | grep -q '^myapp$'
-  - name: "Check if container is running nginx"
-    cmd: docker inspect myapp | grep -q nginx
-  - name: "Check if container port 80 is exposed"
-    cmd: docker inspect myapp | grep -q '"80/tcp"'
+  - name: "Dockerfile exists in /root/webapp"
+    cmd: test -f /root/webapp/Dockerfile
+  - name: "Dockerfile parses and has no lint errors (hadolint)"
+    cmd: hadolint --failure-threshold error /root/webapp/Dockerfile
+  - name: "Base image is nginx with a pinned tag (not latest)"
+    cmd: grep -Eiq '^[[:space:]]*FROM[[:space:]]+(docker\.io/(library/)?)?nginx:[A-Za-z0-9._-]+' /root/webapp/Dockerfile && ! grep -Eiq '^[[:space:]]*FROM[[:space:]]+[^[:space:]]+:latest' /root/webapp/Dockerfile
+  - name: "index.html is copied into /usr/share/nginx/html"
+    cmd: grep -Eiq '^[[:space:]]*(COPY|ADD)[[:space:]]+(--[^[:space:]]+[[:space:]]+)*(\./)?index\.html[[:space:]]+/usr/share/nginx/html/?(index\.html)?[[:space:]]*$' /root/webapp/Dockerfile
+  - name: "Dockerfile exposes port 80"
+    cmd: grep -Eiq '^[[:space:]]*EXPOSE[[:space:]]+(.*[[:space:]])?80(/tcp)?([[:space:]]|$)' /root/webapp/Dockerfile
+  - name: "compose.yaml is valid"
+    cmd: cd /root/webapp && docker-compose -f compose.yaml config -q
+  - name: "Service 'web' is built from the local Dockerfile"
+    cmd: cd /root/webapp && docker-compose -f compose.yaml config --format json | jq -e '.services.web.build.context == "/root/webapp"' >/dev/null
+  - name: "Service 'web' publishes host port 8080 to container port 80"
+    cmd: cd /root/webapp && docker-compose -f compose.yaml config --format json | jq -e '[.services.web.ports[]? | select(.target == 80 and (.published | tostring) == "8080")] | length > 0' >/dev/null

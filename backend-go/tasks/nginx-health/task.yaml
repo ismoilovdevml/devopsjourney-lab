@@ -1,19 +1,30 @@
 id: nginx-health
-title: "Test 1: Nginx Web Server Setup"
-image: ubuntu:22.04
+title: "Nginx Web Server Setup"
+category: web
 order: 1
 difficulty: 1
+points: 100
+description: >-
+  Publish a tiny health page with Nginx: create the page, start the web server
+  and prove it answers on http://127.0.0.1/.
+hints:
+  - "Nginx is already installed. Its default document root is /var/www/html."
+  - "The page must contain exactly one line: ok. Try: echo ok > /var/www/html/index.html"
+  - "Validate the config with 'nginx -t', start it with 'service nginx start', then test with 'curl -s http://127.0.0.1/'."
 
+# Runs offline inside the lab image (devopslab-lab); no network, no extra capabilities.
 setup:
-  - apt-get update -qq
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl > /dev/null 2>&1
+  - rm -f /var/www/html/index.html
+  - nginx -s stop >/dev/null 2>&1 || true
 
 checks:
-  - name: "Check if index.html exists"
+  - name: "index.html exists in /var/www/html"
     cmd: test -f /var/www/html/index.html
-  - name: "Check if content is 'ok'"
+  - name: "index.html contains exactly 'ok'"
     cmd: grep -qx ok /var/www/html/index.html
-  - name: "Check if Nginx is running"
-    cmd: pgrep nginx >/dev/null
-  - name: "Check if web page is accessible"
-    cmd: curl -s http://127.0.0.1/index.html | grep -q ok
+  - name: "Nginx configuration is valid"
+    cmd: nginx -t
+  - name: "Nginx is running"
+    cmd: pgrep -x nginx >/dev/null
+  - name: "http://127.0.0.1/ returns 200 with 'ok'"
+    cmd: test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)" = 200 && curl -s http://127.0.0.1/ | grep -qx ok

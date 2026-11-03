@@ -1,90 +1,66 @@
 # Cron Job & Backup Automation
 
-## Task Description
-Cron is a time-based job scheduler in Unix-like systems. Learn how to automate backups using cron jobs - a critical skill for DevOps engineers.
+## Goal
+Backups that depend on someone remembering to run them do not exist. Write a backup script
+with a retention policy and let cron run it every night.
 
-## Objectives
-1. Create a backup script that archives `/var/www/html`
-2. Make the script executable
-3. Schedule it to run daily using cron
+## What you need to do
+1. Write `/usr/local/bin/backup.sh` that
+   - creates `/backups/website-backup-<timestamp>.tar.gz`, a gzip tar archive of `/var/www/html`
+     (use a timestamp such as `$(date +%Y%m%d-%H%M%S)` so every run makes a new file),
+   - deletes `website-backup-*.tar.gz` files in `/backups` that are **older than 7 days**,
+   - exits with status `0` on success.
+2. Make the script executable.
+3. Start the cron daemon.
+4. Add a crontab entry for root that runs the script **every day at 02:00**.
 
-## Instructions
+## Hints
 
-### Step 1: Create backup script
+### The script
 ```bash
-cat > /usr/local/bin/backup.sh << 'EOF'
+cat > /usr/local/bin/backup.sh <<'EOF2'
 #!/bin/bash
-# Backup script for website files
+set -euo pipefail
 
 SOURCE_DIR="/var/www/html"
 BACKUP_DIR="/backups"
-DATE=$(date +%Y%m%d-%H%M%S)
-BACKUP_FILE="website-backup-${DATE}.tar.gz"
+STAMP="$(date +%Y%m%d-%H%M%S)"
 
-# Create backup directory if it doesn't exist
-mkdir -p ${BACKUP_DIR}
+mkdir -p "$BACKUP_DIR"
+tar -czf "$BACKUP_DIR/website-backup-$STAMP.tar.gz" "$SOURCE_DIR"
 
-# Create compressed backup
-tar -czf ${BACKUP_DIR}/${BACKUP_FILE} ${SOURCE_DIR} 2>/dev/null
+# Retention: keep 7 days of backups
+find "$BACKUP_DIR" -name 'website-backup-*.tar.gz' -mtime +7 -delete
 
-# Keep only last 7 days of backups
-find ${BACKUP_DIR} -name "website-backup-*.tar.gz" -mtime +7 -delete
-
-echo "Backup completed: ${BACKUP_FILE}"
-EOF
-
+echo "Backup completed: website-backup-$STAMP.tar.gz"
+EOF2
 chmod +x /usr/local/bin/backup.sh
+/usr/local/bin/backup.sh && ls -lh /backups
 ```
 
-### Step 2: Create backup directory
+### Cron
 ```bash
-mkdir -p /backups
-```
-
-### Step 3: Test the backup script
-```bash
-/usr/local/bin/backup.sh
-ls -lh /backups
-```
-
-### Step 4: Add cron job to run daily at 2 AM
-```bash
-# Add cron job
+service cron start
 (crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/bin/backup.sh") | crontab -
-```
-
-### Verify cron job
-```bash
 crontab -l
 ```
 
-## Tips
-- Cron format: `minute hour day month weekday command`
-- `0 2 * * *` means: At 02:00 every day
-- Use `crontab -e` to edit cron jobs interactively
-- Logs are typically in `/var/log/syslog` or `/var/log/cron`
-- Always test scripts before scheduling them
+## What the checker verifies
+1. `/usr/local/bin/backup.sh` exists and is executable
+2. a `cron` process is running
+3. root's crontab contains `0 2 * * * /usr/local/bin/backup.sh`
+4. running the script creates a fresh `/backups/website-backup-*.tar.gz` that contains `index.html`
+5. running the script deletes a `website-backup-*.tar.gz` file that is 10 days old
 
-## Common Cron Schedule Examples
+## Cron cheat sheet
 ```
-* * * * *     # Every minute
-0 * * * *     # Every hour
-0 0 * * *     # Every day at midnight
-0 2 * * *     # Every day at 2 AM
-0 0 * * 0     # Every Sunday at midnight
-0 0 1 * *     # First day of every month
-*/15 * * * *  # Every 15 minutes
-```
-
-## Testing
-After setup, you can verify:
-```bash
-# Run backup manually
-/usr/local/bin/backup.sh
-
-# Check if backup file was created
-ls -lh /backups/
-
-# View crontab
-crontab -l
+┌──────── minute (0-59)
+│ ┌────── hour (0-23)
+│ │ ┌──── day of month (1-31)
+│ │ │ ┌── month (1-12)
+│ │ │ │ ┌ day of week (0-6, Sunday = 0)
+│ │ │ │ │
+0 2 * * *   every day at 02:00
+*/15 * * * *  every 15 minutes
+0 0 * * 0   every Sunday at midnight
 ```

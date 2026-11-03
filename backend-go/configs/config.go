@@ -154,7 +154,7 @@ func Load() *Config {
 		Docker: DockerConfig{
 			Host:             dockerHost,
 			Socket:           socket,
-			DefaultImage:     getEnv("DEFAULT_IMAGE", "ubuntu:22.04"),
+			DefaultImage:     getEnv("DEFAULT_IMAGE", "devopslab-lab:latest"),
 			TasksDir:         getEnv("TASKS_DIR", "./tasks"),
 			SessionTTL:       getEnvInt("SESSION_TTL", 3600),
 			MemLimit:         getEnvInt64("MEM_LIMIT", 536870912),
