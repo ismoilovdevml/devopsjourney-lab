@@ -132,10 +132,14 @@ export const useSessionStore = defineStore('session', () => {
   /** Run the task checks in the current container. */
   async function check(): Promise<CheckResponse | null> {
     if (!session.value) return null
+    const sessionId = session.value.sessionId
     isChecking.value = true
     try {
-      lastCheck.value = await api.checkSolution(session.value.sessionId)
-      return lastCheck.value
+      const result = await api.checkSolution(sessionId)
+      // Drop results for a session that was recreated or replaced while the check ran.
+      if (session.value?.sessionId !== sessionId) return null
+      lastCheck.value = result
+      return result
     } finally {
       isChecking.value = false
     }

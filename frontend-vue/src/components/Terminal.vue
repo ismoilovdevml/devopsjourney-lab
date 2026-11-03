@@ -8,6 +8,7 @@
     sessionId: string        (reconnects when it changes, e.g. after "recreate")
     showStatus?: boolean     (connection pill in the top-right corner; default true)
   Emits: status('connecting' | 'open' | 'reconnecting' | 'closed' | 'failed')
+  Keys: Ctrl+Shift+C copies the selection, Ctrl+Shift+V pastes (Ctrl+C stays SIGINT).
   Exposes: focus(), fit(), clear()
 -->
 <template>
@@ -105,6 +106,32 @@ function fit() {
   sendResize()
 }
 
+function sendInput(data: string) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(data)
+}
+
+function onTerminalKey(e: KeyboardEvent): boolean {
+  if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return true
+  const key = e.key.toLowerCase()
+  if (key === 'c') {
+    const selection = term?.getSelection()
+    if (selection) navigator.clipboard?.writeText(selection).catch(() => undefined)
+    e.preventDefault()
+    return false
+  }
+  if (key === 'v') {
+    e.preventDefault()
+    navigator.clipboard
+      ?.readText()
+      .then((text) => {
+        if (text) term?.paste(text)
+      })
+      .catch(() => undefined)
+    return false
+  }
+  return true
+}
+
 function focus() {
   term?.focus()
 }
@@ -139,7 +166,9 @@ function connect() {
     attempts.value = 0
     setStatus('open')
     fit()
-    focus()
+    // Do not steal focus from another control (e.g. a button the user is on).
+    const active = document.activeElement
+    if (!active || active === document.body || host.value?.contains(active)) focus()
   }
 
   socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
@@ -181,9 +210,10 @@ function createTerminal() {
   term.open(host.value)
 
   // Registered once per terminal (not per socket) so reconnects never duplicate input.
-  term.onData((data) => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(data)
-  })
+  term.onData(sendInput)
+
+  // Ctrl+Shift+C / Ctrl+Shift+V copy and paste (plain Ctrl+C must stay SIGINT).
+  term.attachCustomKeyEventHandler(onTerminalKey)
 
   resizeObserver = new ResizeObserver(() => fit())
   resizeObserver.observe(host.value)
