@@ -54,7 +54,6 @@
             'flex items-center gap-3 rounded-xl px-2 py-2.5 text-text transition-colors hover:bg-surface-3 hover:text-text sm:gap-4 sm:px-3',
             row.status === 'active' ? 'bg-info/[0.04]' : ''
           ]"
-          :aria-label="`${row.number}. ${row.task.title} — ${row.statusLabel}`"
         >
           <span
             :class="[

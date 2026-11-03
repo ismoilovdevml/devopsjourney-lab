@@ -26,7 +26,7 @@ export default {
           2: '#C9D4E0'
         },
         muted: '#94A3B8',
-        faint: '#64748B',
+        faint: '#8090A4',
         accent: {
           DEFAULT: '#3DDC97',
           hover: '#7EF0BE',

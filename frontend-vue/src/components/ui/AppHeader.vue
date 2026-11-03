@@ -29,7 +29,7 @@
         <button
           type="button"
           class="hidden h-[38px] items-center gap-2 rounded-lg border border-border-strong bg-surface-solid pl-3 pr-2.5 text-muted transition-colors hover:border-border-stronger hover:text-text md:flex xl:min-w-[210px]"
-          aria-label="Qidirish"
+          :aria-label="isMac ? 'Qidirish ⌘K' : 'Qidirish Ctrl K'"
           aria-keyshortcuts="Control+K Meta+K"
           @click="openSearch"
         >
@@ -61,7 +61,7 @@
           :to="{ name: 'profile' }"
           :aria-current="route.name === 'profile' ? 'page' : undefined"
           class="flex h-[38px] w-[38px] items-center justify-center rounded-full border-[1.5px] border-accent bg-surface-3 text-[13px] font-semibold text-text hover:text-text"
-          :aria-label="`Profil: ${auth.user?.username ?? ''}`"
+          :aria-label="`${auth.initials || '?'} · Profil: ${auth.user?.username ?? ''}`"
         >
           {{ auth.initials || '?' }}
         </RouterLink>

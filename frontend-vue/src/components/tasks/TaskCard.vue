@@ -13,11 +13,12 @@
     :class="[
       'group flex w-full flex-col items-stretch justify-start overflow-hidden rounded-card border bg-[rgba(15,21,32,0.9)] text-left transition-colors',
       selected ? 'border-accent shadow-selected' : 'border-border hover:border-border-stronger',
-      status === 'locked' && !selected ? 'opacity-70 hover:opacity-90' : ''
+      
     ]"
     @click="emit('select')"
   >
-    <span class="relative block">
+    <!-- Locked cards dim only the artwork so text keeps AA contrast. -->
+    <span :class="['relative block', status === 'locked' && !selected ? 'opacity-60 grayscale' : '']">
       <TaskCover :task-id="task.id" :category="task.category" />
       <span class="absolute left-2.5 top-2.5 rounded-chip bg-[rgba(10,14,20,0.75)] px-2 py-0.5 font-mono text-xs font-semibold text-text">
         {{ taskNumber(task.order) }}
