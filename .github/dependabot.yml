@@ -16,7 +16,20 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # eslint-plugin-vue 10 needs ESLint 9 flat config; migrate the lint stack together, by hand.
+      - dependency-name: eslint-plugin-vue
+        update-types: [version-update:semver-major]
     open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+    groups:
+      e2e:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
 
   - package-ecosystem: docker
     directories:
@@ -31,6 +44,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # A Postgres major upgrade needs a data migration (pg_upgrade or dump/restore), not an image bump.
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
