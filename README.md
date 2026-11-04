@@ -73,7 +73,7 @@ Admin) to pick up changes.
 |---|---|
 | Frontend | Vue 3, TypeScript, Tailwind, Pinia, xterm.js, Vite |
 | Backend | Go, Gin, GORM, PostgreSQL, Redis, Docker Engine API |
-| Runtime | nginx (unprivileged), docker-socket-proxy, Ubuntu 24.04 lab image |
+| Runtime | nginx (unprivileged), docker-socket-proxy, Ubuntu 26.04 lab image |
 | Tests | Go unit + integration tests, Playwright end-to-end (desktop and mobile) |
 
 ```
