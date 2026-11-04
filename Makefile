@@ -12,6 +12,9 @@ BACKEND_DIR    := backend-go
 FRONTEND_DIR   := frontend-vue
 E2E_DIR        := e2e
 
+# Stamped into the backend binary and image tags (shown by /healthz and the footer).
+export APP_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 .PHONY: help secrets lab-image up down logs ps restart dev-deps test test-backend test-frontend e2e lint clean
 
 help: ## Show this help
