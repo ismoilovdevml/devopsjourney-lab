@@ -4,7 +4,7 @@
 # NetworkMode=none and task setup commands finish offline in a few seconds.
 #
 # Build: docker build -t devopslab-lab:latest backend-go/lab-image
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ARG HADOLINT_VERSION=2.12.0
 ARG HADOLINT_SHA256_AMD64=56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010
