@@ -8,8 +8,8 @@
 <template>
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-3">
-      <SegmentedControl v-model="level" :options="levelOptions" aria-label="Daraja bo'yicha filtr" size="sm" />
-      <SegmentedControl v-model="limit" :options="LIMIT_OPTIONS" aria-label="Yozuvlar soni" size="sm" class="sm:ml-auto" />
+      <SegmentedControl v-model="level" :options="levelOptions" ariaLabel="Daraja bo'yicha filtr" size="sm" />
+      <SegmentedControl v-model="limit" :options="LIMIT_OPTIONS" ariaLabel="Yozuvlar soni" size="sm" class="sm:ml-auto" />
     </div>
 
     <SectionError v-if="error && !loaded" :message="error" :command="`GET /api/admin/activity?limit=${limit}`" :retrying="loading" @retry="refresh" />

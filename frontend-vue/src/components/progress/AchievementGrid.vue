@@ -18,7 +18,7 @@
           <span class="sr-only">, {{ achievements.length }} tadan {{ earnedCount }} tasi olingan</span>
         </span>
       </h2>
-      <SegmentedControl v-model="filter" :options="FILTERS" aria-label="Yutuqlar filtri" size="sm" />
+      <SegmentedControl v-model="filter" :options="FILTERS" ariaLabel="Yutuqlar filtri" size="sm" />
     </div>
 
     <ul v-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2.5" aria-hidden="true">

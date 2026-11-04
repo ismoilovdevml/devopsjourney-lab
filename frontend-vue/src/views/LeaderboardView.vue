@@ -12,7 +12,7 @@
           <SegmentedControl
             :model-value="period"
             :options="periodOptions"
-            aria-label="Davr"
+            ariaLabel="Davr"
             @update:model-value="selectPeriod"
           />
         </template>

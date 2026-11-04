@@ -23,14 +23,14 @@
     <SegmentedControl
       :model-value="status"
       :options="STATUS_OPTIONS"
-      aria-label="Holat bo'yicha"
+      ariaLabel="Holat bo'yicha"
       class="max-sm:grid max-sm:w-full max-sm:grid-cols-2"
       @update:model-value="onStatus"
     />
     <SegmentedControl
       :model-value="level"
       :options="LEVEL_OPTIONS"
-      aria-label="Daraja bo'yicha"
+      ariaLabel="Daraja bo'yicha"
       class="max-sm:grid max-sm:w-full max-sm:grid-cols-[1.6fr_1fr_1fr_1fr]"
       @update:model-value="onLevel"
     />

@@ -62,7 +62,7 @@
       <SegmentedControl
         :model-value="prefs.fontSize"
         :options="sizeOptions"
-        aria-label="Terminal shrifti o'lchami"
+        ariaLabel="Terminal shrifti o'lchami"
         class="self-start"
         @update:model-value="onFontSize"
       />
