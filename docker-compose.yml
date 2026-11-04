@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     <<: *hardening
     # Run as the image's redis user (uid 999) from the start: no root, no
     # capabilities. Fresh named volumes inherit the image's ownership.
