@@ -1,6 +1,6 @@
 import { request as playwrightRequest, type APIRequestContext, type Page } from '@playwright/test'
 import { test, expect, newStudent, registerStudent, stopActiveSession, type Student } from '../fixtures'
-import { ADMIN_STATE, apiHeaders } from '../fixtures/env'
+import { ADMIN_STATE, adminCredentials, apiHeaders } from '../fixtures/env'
 import {
   TASK_COUNT,
   adminApi,
@@ -228,7 +228,9 @@ test.describe('admin console', () => {
   })
 
   test("users: the admin's own row actions are disabled", async ({ page }) => {
+    // The list is newest first and capped, so find the (oldest) seeded admin through search.
     await page.goto('/admin?section=users')
+    await page.getByPlaceholder('grep user / email').fill(adminCredentials().username)
     const self = page.getByRole('row').filter({ has: page.getByText('(siz)') })
     await expect(self).toHaveCount(1)
     await expect(self.getByRole('button', { name: /qilish$/ })).toBeDisabled()

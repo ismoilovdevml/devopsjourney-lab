@@ -546,9 +546,28 @@ func TestHandlersWithPostgres(t *testing.T) {
 		e.expect(r, 200, "users")
 		var users []models.AdminUser
 		r.json(t, &users)
-		if len(users) != 3 || users[0].Username != "alice" || users[0].Score != 100 || users[0].Completed != 1 || users[0].LastActive == nil {
+		// Newest first: alice registered first, so she is last.
+		if len(users) != 3 || users[2].Username != "alice" || users[2].Score != 100 || users[2].Completed != 1 || users[2].LastActive == nil {
 			t.Fatalf("admin users: %s", r.body)
 		}
+
+		// Server-side search matches username or email, case-insensitively.
+		r = e.do("GET", "/api/admin/users?q=ALI", nil, carol)
+		e.expect(r, 200, "users search")
+		users = nil
+		r.json(t, &users)
+		if len(users) != 1 || users[0].Username != "alice" {
+			t.Fatalf("search q=ALI: %s", r.body)
+		}
+		// LIKE wildcards are literal, so "%" matches nobody.
+		r = e.do("GET", "/api/admin/users?q=%25", nil, carol)
+		e.expect(r, 200, "users search wildcard")
+		users = nil
+		r.json(t, &users)
+		if len(users) != 0 {
+			t.Fatalf("search q=%%: %s", r.body)
+		}
+		e.expect(e.do("GET", "/api/admin/users?q="+strings.Repeat("a", 65), nil, carol), 400, "search too long")
 
 		self := fmt.Sprint(carolUser.ID)
 		e.expect(e.do("PUT", "/api/admin/users/"+self, map[string]any{"role": "student"}, carol), 400, "self demote")

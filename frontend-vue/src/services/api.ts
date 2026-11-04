@@ -257,8 +257,9 @@ export const api = {
     return data
   },
 
-  async adminUsers(): Promise<AdminUser[]> {
-    const { data } = await http.get<AdminUser[]>('/admin/users')
+  /** Newest users first; `q` filters by username or email on the server. */
+  async adminUsers(q = ''): Promise<AdminUser[]> {
+    const { data } = await http.get<AdminUser[]>('/admin/users', { params: q ? { q } : undefined })
     return data
   },
 

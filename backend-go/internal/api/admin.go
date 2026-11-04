@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/devops-lab/backend/internal/database"
@@ -92,7 +93,8 @@ func GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, s)
 }
 
-// GetUsers handles GET /api/admin/users?limit=&offset=.
+// GetUsers handles GET /api/admin/users?q=&limit=&offset=, newest users first.
+// q matches username or email case-insensitively.
 func GetUsers(c *gin.Context) {
 	limit, ok := parseLimit(c, 500, 1, 1000)
 	if !ok {
@@ -102,7 +104,18 @@ func GetUsers(c *gin.Context) {
 	if !ok {
 		return
 	}
+	q := strings.TrimSpace(c.Query("q"))
+	if len(q) > 64 {
+		respondError(c, http.StatusBadRequest, "Invalid query", "q must be at most 64 characters")
+		return
+	}
 	cte, args := pointsCTE(task.GetTasks())
+	search := ""
+	if q != "" {
+		pattern := "%" + likeEscaper.Replace(q) + "%"
+		search = ` AND (u.username ILIKE ? ESCAPE '\' OR u.email ILIKE ? ESCAPE '\')`
+		args = append(args, pattern, pattern)
+	}
 	args = append(args, limit, offset)
 
 	var rows []struct {
@@ -128,8 +141,8 @@ func GetUsers(c *gin.Context) {
 		SELECT u.id, u.username, u.email, u.role, u.active, u.github, u.goal, u.created_at, u.last_active_at,
 		       COALESCE(agg.score, 0) AS score, COALESCE(agg.completed, 0) AS completed
 		FROM users u LEFT JOIN agg ON agg.user_id = u.id
-		WHERE u.deleted_at IS NULL
-		ORDER BY u.id
+		WHERE u.deleted_at IS NULL`+search+`
+		ORDER BY u.created_at DESC, u.id DESC
 		LIMIT ? OFFSET ?`, args...).Scan(&rows).Error
 	if err != nil {
 		internalError(c, err, "failed to list users")
@@ -362,3 +375,6 @@ func ReloadTasks(c *gin.Context) {
 	logSelf(c, models.LevelInfo, "admin_reload_tasks", fmt.Sprintf("Reloaded %d tasks", n))
 	c.JSON(http.StatusOK, gin.H{"count": n})
 }
+
+// likeEscaper escapes LIKE wildcards so admin search treats input literally.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)

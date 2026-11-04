@@ -118,7 +118,7 @@ LeaderboardResponse = {
 | Method | Path | Response |
 |---|---|---|
 | GET | `/api/admin/stats` | `{total_users, active_users, active_sessions, total_attempts, completion_rate, sessions_24h: number[24], task_completion: {task_id, attempts, passed}[]}` |
-| GET | `/api/admin/users` | `AdminUser[]` (`User & {score, completed, last_active}`) |
+| GET | `/api/admin/users?q=&limit=500&offset=0` | `AdminUser[]` (`User & {score, completed, last_active}`), newest first; `q` (≤64 chars) matches username or email |
 | PUT | `/api/admin/users/:id` | `{role?, active?}` → `200 User` (admin cannot demote/deactivate self) |
 | DELETE | `/api/admin/users/:id` | `204` (admin cannot delete self) |
 | GET | `/api/admin/sessions` | `{id, user_id, username, task_id, status, created_at, expires_at}[]` |

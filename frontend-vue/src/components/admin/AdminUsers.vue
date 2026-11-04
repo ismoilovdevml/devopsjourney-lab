@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Search, Trash2, UserX } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -182,23 +182,39 @@ const filtered = computed(() => {
   return users.value.filter((u) => u.username.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q))
 })
 
+watch(query, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => void refresh(), 300)
+})
+
 function isLocked(u: AdminUser): boolean {
   return u.id === selfId.value || busy.value.has(u.id)
 }
 
+let requestSeq = 0
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+// The API returns at most 500 users (newest first), so search runs on the server.
 async function refresh(): Promise<void> {
+  const seq = ++requestSeq
+  const q = query.value.trim()
   loading.value = true
   error.value = null
   try {
-    users.value = await api.adminUsers()
+    const result = await api.adminUsers(q)
+    if (seq !== requestSeq) return
+    users.value = result
     loaded.value = true
-    emit('count', users.value.length)
+    if (!q) emit('count', result.length)
   } catch (err) {
+    if (seq !== requestSeq) return
     error.value = errorMessage(err, "Foydalanuvchilarni yuklab bo'lmadi.")
     if (loaded.value) toast.error(error.value)
   } finally {
-    loading.value = false
-    now.value = Date.now()
+    if (seq === requestSeq) {
+      loading.value = false
+      now.value = Date.now()
+    }
   }
 }
 
@@ -283,6 +299,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   if (clock) clearInterval(clock)
+  if (searchTimer) clearTimeout(searchTimer)
 })
 
 defineExpose({ refresh, loading })
