@@ -1,5 +1,9 @@
 # DevOps Journey Lab
 
+[![CI](https://github.com/ismoilovdevml/devopsjourney-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ismoilovdevml/devopsjourney-lab/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ismoilovdevml/devopsjourney-lab)](https://github.com/ismoilovdevml/devopsjourney-lab/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Hands-on DevOps practice in the browser. Each student gets a real Linux shell in an isolated
 container, solves a task (Nginx, Docker, systemd, users, firewall, cron), and the platform checks
 the result automatically.
